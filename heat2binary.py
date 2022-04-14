@@ -12,6 +12,7 @@ path3 ="/STG_masks/"
 ant_f = "STG_ant_linearresamp.nii.gz"
 post_f = "STG_post_linearresamp.nii.gz"
 
+#### DEPRECATED? #####
 #sublist = ["1088", "1125", "1401", "1410", "1419", "1427", "1541", "1571", "1581", "1660", "1661", "1664", "1665", "1668", "1672", "1678", "1680", "001", "002", "003", "004", "005"]:
 sublist = ["1088"]
 
