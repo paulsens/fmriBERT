@@ -1,6 +1,7 @@
 import torch
 import torch.nn as nn
 from random import randint
+import numpy as np
 
 class SelfAttention(nn.Module):
     def __init__(self, voxel_dim, heads):
@@ -11,9 +12,17 @@ class SelfAttention(nn.Module):
 
         assert (self.head_dim * heads == voxel_dim)
 
-        self.values = nn.Linear(self.head_dim, self.head_dim, bias=False)
-        self.keys = nn.Linear(self.head_dim, self.head_dim, bias=False)
-        self.queries = nn.Linear(self.head_dim, self.head_dim, bias=False)
+        self.values_heads = []
+        self.keys_heads = []
+        self.queries_heads = []
+
+        #Multi head attention maps
+        for i in range(0, self.heads):
+
+            self.values_heads.append(nn.Linear(self.head_dim, self.head_dim, bias=False))
+            self.keys_heads.append(nn.Linear(self.head_dim, self.head_dim, bias=False))
+            self.queries_heads.append(nn.Linear(self.head_dim, self.head_dim, bias=False))
+
         self.fc_out = nn.Linear(self.heads * self.head_dim, voxel_dim)
 
     def forward(self, values, keys, query, mask):
@@ -25,11 +34,26 @@ class SelfAttention(nn.Module):
         keys = keys.reshape(N, key_len, self.heads, self.head_dim)
         queries = query.reshape(N, query_len, self.heads, self.head_dim)
 
-        values = self.values(values)
-        keys = self.keys(keys)
-        queries = self.queries(queries)
+        #need to clone our tensors to preserve gradient for some reason, pretty confusing error without these
+        new_values = values.clone()
+        new_keys = keys.clone()
+        new_queries = queries.clone()
 
-        energy = torch.einsum("nqhd,nkhd->nhqk", [queries,keys])
+        #Messy looking loop but wouldn't work with python-ese attempts
+        for batch_idx in range(0,N):
+            for element in range(0,value_len):
+                for i in range(0, self.heads):
+                    new_values[batch_idx][element][i] = self.values_heads[i](values[batch_idx][element][i])
+
+            for element in range(0, key_len):
+                for i in range(0, self.heads):
+                    new_keys[batch_idx][element][i] = self.keys_heads[i](keys[batch_idx][element][i].clone())
+
+            for element in range(0, query_len):
+                for i in range(0, self.heads):
+                    new_queries[batch_idx][element][i] = self.queries_heads[i](queries[batch_idx][element][i])
+
+        energy = torch.einsum("nqhd,nkhd->nhqk", [new_queries,new_keys])
         # queries shape: (N, query_len, heads, heads_dim)
         # keys shape: (N, key_len, heads, heads_dim)
         # energy shape: (N, heads, query_len, key_len)
@@ -41,7 +65,7 @@ class SelfAttention(nn.Module):
 
         attention = torch.softmax(energy / (self.voxel_dim ** (1 / 2)), dim=3)
 
-        out = torch.einsum("nhql,nlhd->nqhd",[attention, values]).reshape(
+        out = torch.einsum("nhql,nlhd->nqhd",[attention, new_values]).reshape(
             N, query_len, self.heads*self.head_dim
         )
         # attention shape: (N, heads, query_len, key_len)
@@ -125,10 +149,12 @@ class DecoderBlock(nn.Module):
         self.dropout = nn.Dropout(dropout)
 
     def forward(self, x, value, key, src_mask, trg_mask):
-        attention = self.attention(x, x, x, trg_mask)
-        query = self.dropout(self.norm(attention + x))
-        out = self.transformer_block(value, key, query, src_mask)
-        return out
+        y = torch.clone(x)
+        z = torch.clone(x)
+        dec_attention = self.attention(x, y, z, trg_mask)
+        dec_query = self.dropout(self.norm(dec_attention + x))
+        dec_out = self.transformer_block(value, key, dec_query, src_mask)
+        return dec_out
 
 class Decoder(nn.Module):
     def __init__(
@@ -157,7 +183,7 @@ class Decoder(nn.Module):
         self.dropout = nn.Dropout(dropout)
 
     def forward(self, x, enc_out, src_mask, trg_mask):
-        print("In the decoder's forward call, x is "+str(x))
+        #print("In the decoder's forward call, x is "+str(x))
         N, seq_length, voxel_dim = x.shape
         positions = torch.arange(0, seq_length).expand(N, seq_length).to(self.device)
         embedded_positions = self.position_embedding(positions)
@@ -179,7 +205,7 @@ class Transformer(nn.Module):
             voxel_dim=8,
             num_layers=2,
             forward_expansion=4,
-            heads=4,
+            heads=ATTENTION_HEADS,
             dropout=0,
             #device="cuda",
             device="cpu",
@@ -209,10 +235,14 @@ class Transformer(nn.Module):
             max_length
         )
 
-        self.output_layer = nn.Sequential(
+        self.output_layer_bin = nn.Sequential(
             nn.Linear(voxel_dim, next_sequence_labels),
             #nn.ReLU()
 
+        )
+        self.output_layer_multi =  nn.Sequential(
+            nn.Linear(voxel_dim, num_genres),
+            nn.Softmax(dim=1)
         )
 
         self.src_pad_sequence = src_pad_sequence
@@ -249,16 +279,31 @@ class Transformer(nn.Module):
     #     )
     #     return trg_mask.to(self.device)
 
-    def forward(self, src):
+    def forward(self, src, mask_indices):
         src_mask = self.make_src_mask(src)
         #trg_mask = None
         enc_src = self.encoder(src, src_mask)
         #out = self.decoder(trg, enc_src, src_mask, trg_mask)
         #print("enc_src has shape "+str(enc_src.shape))
         batch_CLS_tokens = enc_src[:,0,:] #slice out the first element of each transformed sequence (the final form of CLS token)
-        out = self.output_layer(batch_CLS_tokens)
-        #out = torch.sigmoid(out)
-        return out
+        batch_MSK_tokens = []
+
+        BATCHSIZE=len(mask_indices)
+        voxel_dim=0 #just to get rid of a warning, gets overwritten in for loop below
+        #make a list of the final states of the MSK tokens
+        #the mask_indices list tells us where to find them
+        for i in range(0, BATCHSIZE):
+            temp = enc_src[i][mask_indices[i]][:]
+            voxel_dim = len(temp)
+            #print("in Transformer's forward, temp is "+str(temp)+" and batcmsktokens is "+str(batch_MSK_tokens))
+            batch_MSK_tokens.append(temp)
+        batch_MSK_tokens = torch.stack(batch_MSK_tokens) #create pytorch tensor of the tensors in the list
+
+        #print("batch MSK tokens has shape "+str(batch_MSK_tokens.shape))  #should be batchsize by voxel_dim
+
+        out_bin = self.output_layer_bin(batch_CLS_tokens)
+        out_multi = self.output_layer_multi(batch_MSK_tokens)
+        return out_bin, out_multi
 
 def get_mask_idx(sequence, src_pad_sequence): #n-by-voxel_dim sequence of voxel data
     padded_len = len(sequence)
@@ -275,58 +320,58 @@ def get_mask_idx(sequence, src_pad_sequence): #n-by-voxel_dim sequence of voxel 
     return mask_idx
 
 
-if __name__ == "__main__":
-    ##############################  SET PARAMETERS  ##############################
-    #device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    device = "cpu"
-    MSK_flag = 0
-    CLS_flag = 1
-
-    next_sequence_labels = 2 #two possible labels for next sequence prediction task, yes or no
-    max_length = 8 #length of voxel sequence*2 + 1 (CLS token) + 1 (SEP token)
-    actual_voxel_dim = 5
-    voxel_dim = actual_voxel_dim+3 #add dimensions to flag CLS, MSK, and SEP
-    num_genres = 8 #from the training set
-
-    src_pad_sequence = [0]*voxel_dim
-    CLS_token = [1]+([0]*(voxel_dim-1)) #first dimension is reserved for cls_token flag
-    MSK_token = [0, 1]+([0]*(voxel_dim-2)) #second dimension is reserved for msk_token flag
-    SEP_token = [0, 0, 1]+([0]*(voxel_dim-3)) #third dimension is reserved for sep_token flag
-    cross_entropy_loss = nn.CrossEntropyLoss()
-    kl_loss = nn.KLDivLoss(reduction='batchmean')
-
-    t00 = [0, 0, 0, 4, 5, 3, 2, 1]  # list of voxels in sample 0 at time 0
-    t01 = [0, 0, 0, 4, 5, 3, 2, 1]  # list of voxels in sample 0 at time 2
-    t02 = [0, 0, 0, 0, 0, 0, 0, 0]  # list of voxels in sample 0 at time 1
-    t10 = [0, 0, 0, 9, 2, 3, 4, 0]  # list of voxels in sample 1 at time 0
-    t11 = [0, 0, 0, 7, 1, 2, 3, 6]  # list of voxels in sample 1 at time 1
-    t12 = [0, 0, 0, 4, 5, 3, 2, 1]  # list of voxels in sample 1 at time 2
-    fake =[0, 0, 0, -1, -1, -1, -1, -1]
-
-
-    sample0 = [CLS_token, t00, t01, t02, SEP_token, t02, t01, t00]
-    sample1 = [CLS_token, t10, t11, t12, SEP_token, fake, fake, fake]
-
-    #labels for first batch
-    batch0 = torch.tensor([sample0, sample1])
-    genre_labels0 = torch.tensor([4, 5])
-    next_sequence_labels0 = torch.tensor([1, 0])
-    #targets0 = torch.tensor([labels0, labels1])
-
-    batch_size = len(batch0)
-
-    if(MSK_flag):
-        for sample in range(0,batch_size):
-            mask_idx = get_mask_idx(batch0[sample], src_pad_sequence)
-            batch0[sample][mask_idx] = torch.tensor(MSK_token)
-            # print("For sample "+str(sample)+", masked index "+str(mask_idx))
-            # print("That sequence is now  "+str(batch0[sample]))
-
-    model = Transformer(next_sequence_labels=next_sequence_labels, num_genres=num_genres, src_pad_sequence=src_pad_sequence, max_length=max_length, voxel_dim=voxel_dim).to(device)
-    out = model(batch0, None) #inputs to Transformer class's forward pass are inputs to encoder, and inputs to decoder
-    print(out.shape)
-    print(str(out))
-
-    loss = cross_entropy_loss(out, next_sequence_labels0)
-    loss.backward()
-    print("Loss: "+str(loss))
+# if __name__ == "__main__":
+#     ##############################  SET PARAMETERS  ##############################
+#     #device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+#     device = "cpu"
+#     MSK_flag = 0
+#     CLS_flag = 1
+#
+#     next_sequence_labels = 2 #two possible labels for next sequence prediction task, yes or no
+#     max_length = 8 #length of voxel sequence*2 + 1 (CLS token) + 1 (SEP token)
+#     actual_voxel_dim = 5
+#     voxel_dim = actual_voxel_dim+3 #add dimensions to flag CLS, MSK, and SEP
+#     num_genres = 8 #from the training set
+#
+#     src_pad_sequence = [0]*voxel_dim
+#     CLS_token = [1]+([0]*(voxel_dim-1)) #first dimension is reserved for cls_token flag
+#     MSK_token = [0, 1]+([0]*(voxel_dim-2)) #second dimension is reserved for msk_token flag
+#     SEP_token = [0, 0, 1]+([0]*(voxel_dim-3)) #third dimension is reserved for sep_token flag
+#     cross_entropy_loss = nn.CrossEntropyLoss()
+#     kl_loss = nn.KLDivLoss(reduction='batchmean')
+#
+#     t00 = [0, 0, 0, 4, 5, 3, 2, 1]  # list of voxels in sample 0 at time 0
+#     t01 = [0, 0, 0, 4, 5, 3, 2, 1]  # list of voxels in sample 0 at time 2
+#     t02 = [0, 0, 0, 0, 0, 0, 0, 0]  # list of voxels in sample 0 at time 1
+#     t10 = [0, 0, 0, 9, 2, 3, 4, 0]  # list of voxels in sample 1 at time 0
+#     t11 = [0, 0, 0, 7, 1, 2, 3, 6]  # list of voxels in sample 1 at time 1
+#     t12 = [0, 0, 0, 4, 5, 3, 2, 1]  # list of voxels in sample 1 at time 2
+#     fake =[0, 0, 0, -1, -1, -1, -1, -1]
+#
+#
+#     sample0 = [CLS_token, t00, t01, t02, SEP_token, t02, t01, t00]
+#     sample1 = [CLS_token, t10, t11, t12, SEP_token, fake, fake, fake]
+#
+#     #labels for first batch
+#     batch0 = torch.tensor([sample0, sample1])
+#     genre_labels0 = torch.tensor([4, 5])
+#     next_sequence_labels0 = torch.tensor([1, 0])
+#     #targets0 = torch.tensor([labels0, labels1])
+#
+#     batch_size = len(batch0)
+#
+#     if(MSK_flag):
+#         for sample in range(0,batch_size):
+#             mask_idx = get_mask_idx(batch0[sample], src_pad_sequence)
+#             batch0[sample][mask_idx] = torch.tensor(MSK_token)
+#             # print("For sample "+str(sample)+", masked index "+str(mask_idx))
+#             # print("That sequence is now  "+str(batch0[sample]))
+#
+#     model = Transformer(next_sequence_labels=next_sequence_labels, num_genres=num_genres, src_pad_sequence=src_pad_sequence, max_length=max_length, voxel_dim=voxel_dim).to(device)
+#     out = model(batch0, None) #inputs to Transformer class's forward pass are inputs to encoder, and inputs to decoder
+#     print(out.shape)
+#     print(str(out))
+#
+#     loss = cross_entropy_loss(out, next_sequence_labels0)
+#     loss.backward()
+#     print("Loss: "+str(loss))

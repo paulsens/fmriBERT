@@ -43,7 +43,7 @@ def make_padded_samples(samples):
     return padded_samples
 
 #pass in a timeseries of voxel data for a single subject
-# returns a inputs and labels for next sequence prediction task
+# returns inputs and labels for next sequence prediction task
 def make_NS_data(samples, seq_len, TIMESTEPS, voxel_dim, CLS_token, SEP_token):
     #possible starting points are 0 through TIMESTEPS - (seq_len*2)
     X_data = []
