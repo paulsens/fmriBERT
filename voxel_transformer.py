@@ -2,6 +2,7 @@ import torch
 import torch.nn as nn
 from random import randint
 import numpy as np
+from Constants import ATTENTION_HEADS
 
 class SelfAttention(nn.Module):
     def __init__(self, voxel_dim, heads):
@@ -40,18 +41,18 @@ class SelfAttention(nn.Module):
         new_queries = queries.clone()
 
         #Messy looking loop but wouldn't work with python-ese attempts
-        for batch_idx in range(0,N):
-            for element in range(0,value_len):
-                for i in range(0, self.heads):
-                    new_values[batch_idx][element][i] = self.values_heads[i](values[batch_idx][element][i])
-
-            for element in range(0, key_len):
-                for i in range(0, self.heads):
-                    new_keys[batch_idx][element][i] = self.keys_heads[i](keys[batch_idx][element][i].clone())
-
-            for element in range(0, query_len):
-                for i in range(0, self.heads):
-                    new_queries[batch_idx][element][i] = self.queries_heads[i](queries[batch_idx][element][i])
+        # for batch_idx in range(0,N):
+        #     for element in range(0,value_len):
+        #         for i in range(0, self.heads):
+        #             new_values[batch_idx][element][i] = self.values_heads[i](values[batch_idx][element][i])
+        #
+        #     for element in range(0, key_len):
+        #         for i in range(0, self.heads):
+        #             new_keys[batch_idx][element][i] = self.keys_heads[i](keys[batch_idx][element][i].clone())
+        #
+        #     for element in range(0, query_len):
+        #         for i in range(0, self.heads):
+        #             new_queries[batch_idx][element][i] = self.queries_heads[i](queries[batch_idx][element][i])
 
         energy = torch.einsum("nqhd,nkhd->nhqk", [new_queries,new_keys])
         # queries shape: (N, query_len, heads, heads_dim)
@@ -206,7 +207,7 @@ class Transformer(nn.Module):
             num_layers=2,
             forward_expansion=4,
             heads=ATTENTION_HEADS,
-            dropout=0,
+            dropout=0.1,
             #device="cuda",
             device="cpu",
             max_length=8
@@ -236,12 +237,15 @@ class Transformer(nn.Module):
         )
 
         self.output_layer_bin = nn.Sequential(
-            nn.Linear(voxel_dim, next_sequence_labels),
+            nn.Linear(voxel_dim, voxel_dim//2),
+            nn.Linear(voxel_dim//2, next_sequence_labels),
+            nn.Softmax(dim=1)
             #nn.ReLU()
 
         )
         self.output_layer_multi =  nn.Sequential(
-            nn.Linear(voxel_dim, num_genres),
+            nn.Linear(voxel_dim, voxel_dim // 2),
+            nn.Linear(voxel_dim//2, num_genres),
             nn.Softmax(dim=1)
         )
 
@@ -301,8 +305,10 @@ class Transformer(nn.Module):
 
         #print("batch MSK tokens has shape "+str(batch_MSK_tokens.shape))  #should be batchsize by voxel_dim
 
-        out_bin = self.output_layer_bin(batch_CLS_tokens)
-        out_multi = self.output_layer_multi(batch_MSK_tokens)
+
+        out_bin=self.output_layer_bin(batch_CLS_tokens)
+        out_multi=self.output_layer_multi(batch_MSK_tokens)
+
         return out_bin, out_multi
 
 def get_mask_idx(sequence, src_pad_sequence): #n-by-voxel_dim sequence of voxel data

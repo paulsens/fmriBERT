@@ -28,4 +28,5 @@ import torch
 list_of_tensors = [ torch.randn(3), torch.randn(3), torch.randn(3)]
 
 tensor_of_tensors = torch.stack(list_of_tensors)
-print(tensor_of_tensors.shape) #shape (3,3)
+print(tensor_of_tensors) #shape (3,3)
+print(torch.argmax(tensor_of_tensors, dim=1)) #shape (3,3)

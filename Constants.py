@@ -28,6 +28,10 @@ opengenre_events_path = "/Volumes/External/fmribertfix/opengenredata/bids/"
 #path to preprocessed functional bold data of opengenre dataset, the pickled label files are output in each subject's folder here
 opengenre_preproc_path = "/Volumes/External/opengenre/preproc/"
 
+PRETRAIN_LOG_PATH = "/Users/sean/Desktop/current_research/fmriBERTfix/fmriBERT/pretrain_logs/"
+
 COOL_DIVIDEND=420-3 #sweetspot for voxel space dimension, will vary by ROI, but STG is 420 (after the 3 token dimensions are inserted)
 
 ATTENTION_HEADS = 2
+
+EPOCHS = 4
