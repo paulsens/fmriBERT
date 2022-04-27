@@ -10,13 +10,14 @@ from Constants import *
 from random import randint
 from datetime import datetime
 from torch.utils.data import Dataset
+from helpers import standardize_flattened
 
 # make the pretraining datasets according to several parameters
 #  the first is the probability threshold for inclusion in STG as a string, e.g "23", the second is "left" or "right"
 #   the third is the length of each half of the sample, the fourht is the number of repetitions we want from the -test- runs, from 1 to 4. Recall that each test run is the same 10
 #    clips repeated four times. Default is 1, i.e each set of 10 only once/only the first ten from each test run.
 #     The fifth and sixth determine the binary and multiclass classification tasks we want to train on.
-def make_pretraining_data(threshold, hemisphere, seq_len=5, test_copies=1, binary="same_genre", multiclass="genre_decode", verbose=1):
+def make_pretraining_data(threshold, hemisphere, seq_len=5, test_copies=1, standardize=1, binary="same_genre", multiclass="genre_decode", verbose=1):
     #runs_dict is defined in Constants.py
     test_runs = runs_dict["Test"]
     training_runs = runs_dict["Training"]
@@ -26,9 +27,6 @@ def make_pretraining_data(threshold, hemisphere, seq_len=5, test_copies=1, binar
     CLS = [1] + ([0] * (voxel_dim - 1))  # first dimension is reserved for cls_token flag
     MSK = [0, 1] + ([0] * (voxel_dim - 2))  # second dimension is reserved for msk_token flag
     SEP = [0, 0, 1] + ([0] * (voxel_dim - 3))  # third dimension is reserved for sep_token flag
-
-    #spr stands for samples per run, the right hand side is defined in Constants.py
-    spr = opengenre_samples_per_run
 
     #each element of this list should be (12,real_voxel_dim+3), i.e CLS+5TRs+SEP+5TRs
     #   where 3 extra dimensions have been added to the front of the voxel space for the tokens
@@ -50,9 +48,35 @@ def make_pretraining_data(threshold, hemisphere, seq_len=5, test_copies=1, binar
         subdir = opengenre_preproc_path + "sub-sid" + sub + "/" + "sub-sid" + sub + "/"
         #load voxel data and labels
         with open(subdir+"STG_allruns"+hemisphere+"_t"+threshold+".p", "rb") as data_fp:
-            voxel_data = pickle.load(data_fp)
+            all_data = pickle.load(data_fp)
         with open(subdir+"labelindices_allruns.p","rb") as label_fp:
-            labels = pickle.load(label_fp)
+            all_labels = pickle.load(label_fp)
+        voxel_data=[]
+        labels=[]
+
+        #only remove the test_copies many repetitions (max 4) during the Test Runs
+        n_test_runs = runs_dict["Test"]
+        amount = OPENGENRE_TRSPERRUN*test_copies//4
+        for run in range(0, n_test_runs):
+            start = run*OPENGENRE_TRSPERRUN
+            for TR in range(start, start+amount):
+                voxel_data.append(all_data[TR])
+                if(TR%10==0): # each label corresponds to 10 TRs
+                    labels.append(all_labels[TR//10]) # index in the labels list is one tenth floor'd of the data index
+        #add every TR from the remaining 12 Training Runs, no repetitions here
+        start = n_test_runs*OPENGENRE_TRSPERRUN
+        for TR in range(start, len(all_data)):
+            voxel_data.append(all_data[TR])
+            if (TR % 10 == 0):  # each label corresponds to 10 TRs
+                labels.append(all_labels[TR // 10])  # index in the labels list is one tenth floor'd of the data index
+
+        print("final length of voxel data is "+str(len(voxel_data)))
+        print("final length of labels is "+str(len(labels)))
+
+        #if the standardize flag is set, set mean to zero and variance to 1
+        #function is defined in helpers.py
+        if(standardize):
+            voxel_data = standardize_flattened(voxel_data)
 
         timesteps = len(voxel_data)
         #we're going to obtain timesteps//seq_len many samples from each subject
@@ -80,6 +104,8 @@ def make_pretraining_data(threshold, hemisphere, seq_len=5, test_copies=1, binar
             count = count+1
             iter = iter+1
     # looping over subjects is done
+
+
     # the aggregate lists are complete, let's get the second half of each sample
     for i in range(0, len(training_samples)):
         same_genre = training_labels[i][0]
@@ -127,8 +153,9 @@ def make_pretraining_data(threshold, hemisphere, seq_len=5, test_copies=1, binar
         pickle.dump(training_samples,samples_fp)
     with open(this_dir+str(hemisphere)+"_labels"+str(count)+".p","wb") as labels_fp:
         pickle.dump(training_labels,labels_fp)
-    with open(this_dir+"metadata"+str(count)+".txt","w") as meta_fp:
-        meta_fp.write("threshold:"+str(threshold)+
+    with open(this_dir+str(hemisphere)+"_metadata"+str(count)+".txt","w") as meta_fp:
+        meta_fp.write("First dataset with standardized data and one Test Run repetition"+
+                "\nthreshold:"+str(threshold)+
                       "\nhemisphere:"+str(hemisphere)+
                       "\nseq_len:"+str(seq_len)+
                       "\ntest_copies:"+str(test_copies)+
@@ -139,4 +166,4 @@ def make_pretraining_data(threshold, hemisphere, seq_len=5, test_copies=1, binar
                       "\n")
 
 if __name__=="__main__":
-    make_pretraining_data(23, )
+    make_pretraining_data("23", "left")

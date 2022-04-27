@@ -10,6 +10,8 @@ from Constants import *
 from random import randint
 from datetime import datetime
 from torch.utils.data import Dataset
+from math import sqrt
+import copy
 
 
 class TrainData(Dataset):
@@ -220,7 +222,46 @@ def get_accuracy(y_pred, y_true, log=None):
 
     acc = correct_sum/y_true.shape[0]
     acc = torch.round(acc*100)
+    log.write("accuracy for this batch was "+str(acc))
     return acc
+
+#treat each voxel as a channel
+#calculate mean of each channel across timesteps and subtract it from each timestep
+#calculate new standard deviation of each channel and divide each timestep by that amount
+#voxel data should already be TRs by COOL_DIVIDEND after accounting for test_copies
+def standardize_flattened(voxel_data):
+    stand = copy.deepcopy(voxel_data)
+
+    TRs = len(voxel_data)
+    channels = len(voxel_data[0])
+    for channel in range(3, channels): #don't do this for first three channels, they're just token flag dimensions
+
+        mean = 0
+        for TR in range(0, TRs):
+            mean+=voxel_data[TR][channel]
+        mean=mean/TRs #total sum of channel divided by number of timesteps
+
+        new_mean = 0
+        for TR in range(0, TRs):
+            temp = stand[TR][channel] - mean #subtract out the mean of this channel
+            stand[TR][channel] = temp
+            new_mean += temp
+
+
+        new_mean=new_mean/TRs #mean of shifted data
+        new_dev = 0
+        for TR in range(0, TRs):
+            new_dev+=(stand[TR][channel]-new_mean)**2
+        new_dev = sqrt(new_dev/TRs)
+
+        #unit variance
+        for TR in range(0, TRs):
+            stand[TR][channel]= (stand[TR][channel]/new_dev)
+
+    return stand
+
+
+
 
 
 
@@ -236,4 +277,5 @@ if __name__=="__main__":
     #   pass in the hemisphere and the probability inclusion threshold as a string, and optional verbose parameter, default is True
     #mask_flatten_combine_opengenre("left", "23")
     #mask_flatten_combine_opengenre("right", "23")
-    make_pretraining_data("23", "left")
+    #make_pretraining_data("23", "left")
+    print("none")

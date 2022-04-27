@@ -2,7 +2,7 @@ import torch
 import torch.nn as nn
 from random import randint
 import numpy as np
-from Constants import ATTENTION_HEADS
+from Constants import ATTENTION_HEADS, env, EPOCHS
 
 class SelfAttention(nn.Module):
     def __init__(self, voxel_dim, heads):
@@ -20,9 +20,9 @@ class SelfAttention(nn.Module):
         #Multi head attention maps
         for i in range(0, self.heads):
 
-            self.values_heads.append(nn.Linear(self.head_dim, self.head_dim, bias=False))
-            self.keys_heads.append(nn.Linear(self.head_dim, self.head_dim, bias=False))
-            self.queries_heads.append(nn.Linear(self.head_dim, self.head_dim, bias=False))
+            self.values_heads.append(nn.Linear(self.head_dim, self.head_dim, bias=True))
+            self.keys_heads.append(nn.Linear(self.head_dim, self.head_dim, bias=True))
+            self.queries_heads.append(nn.Linear(self.head_dim, self.head_dim, bias=True))
 
         self.fc_out = nn.Linear(self.heads * self.head_dim, voxel_dim)
 
@@ -41,18 +41,19 @@ class SelfAttention(nn.Module):
         new_queries = queries.clone()
 
         #Messy looking loop but wouldn't work with python-ese attempts
-        # for batch_idx in range(0,N):
-        #     for element in range(0,value_len):
-        #         for i in range(0, self.heads):
-        #             new_values[batch_idx][element][i] = self.values_heads[i](values[batch_idx][element][i])
-        #
-        #     for element in range(0, key_len):
-        #         for i in range(0, self.heads):
-        #             new_keys[batch_idx][element][i] = self.keys_heads[i](keys[batch_idx][element][i].clone())
-        #
-        #     for element in range(0, query_len):
-        #         for i in range(0, self.heads):
-        #             new_queries[batch_idx][element][i] = self.queries_heads[i](queries[batch_idx][element][i])
+        if env == "discovery":
+            for batch_idx in range(0,N):
+                for element in range(0,value_len):
+                    for i in range(0, self.heads):
+                        new_values[batch_idx][element][i] = self.values_heads[i](values[batch_idx][element][i])
+
+                for element in range(0, key_len):
+                    for i in range(0, self.heads):
+                        new_keys[batch_idx][element][i] = self.keys_heads[i](keys[batch_idx][element][i].clone())
+
+                for element in range(0, query_len):
+                    for i in range(0, self.heads):
+                        new_queries[batch_idx][element][i] = self.queries_heads[i](queries[batch_idx][element][i])
 
         energy = torch.einsum("nqhd,nkhd->nhqk", [new_queries,new_keys])
         # queries shape: (N, query_len, heads, heads_dim)

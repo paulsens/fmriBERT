@@ -1,5 +1,8 @@
-
-proj_dir = "/Users/sean/Desktop/current_research/fmriBERTfix/fmriBERT/"
+env = "local"
+if env == "local":
+    proj_dir = "/Users/sean/Desktop/current_research/fmriBERTfix/fmriBERT/"
+elif env =="discovery":
+    proj_dir = "/isi/music/auditoryimagery2/seanthesis/"
 pitch_dir = proj_dir + "pitchclass/"
 curr_sub = "sid001088"
 stg_file = pitch_dir + curr_sub+"/1030/STGsamples.p"
@@ -16,22 +19,36 @@ genrelabel_dict = {
     v: k for k, v in genre_dict.items()
 }
 
-opengenre_samples_per_run = 40
 
 #number of runs for each task in the opengenre dataset
 runs_dict = {"Test": 6, "Training": 12}
 
 #path to subject folders containing .tsv event files from opengenre dataset, used by make_opengenre_labels
 # i.e, tsv files should be at opengenre_events_path/sub-00X/func/
-opengenre_events_path = "/Volumes/External/fmribertfix/opengenredata/bids/"
+if env == "local":
+    opengenre_events_path = "/Volumes/External/fmribertfix/opengenredata/bids/"
+elif env == "discovery":
+    opengenre_events_path = "/isi/music/auditoryimagery2/seanthesis/opengenredata/bids/"
 
 #path to preprocessed functional bold data of opengenre dataset, the pickled label files are output in each subject's folder here
-opengenre_preproc_path = "/Volumes/External/opengenre/preproc/"
+if env == "local":
+    opengenre_preproc_path = "/Volumes/External/opengenre/preproc/"
+elif env == "discovery":
+    opengenre_preproc_path = "/isi/music/auditoryimagery2/seanthesis/opengenre/preproc/"
 
-PRETRAIN_LOG_PATH = "/Users/sean/Desktop/current_research/fmriBERTfix/fmriBERT/pretrain_logs/"
+if env == "local":
+    PRETRAIN_LOG_PATH = "/Users/sean/Desktop/current_research/fmriBERTfix/fmriBERT/pretrain_logs/"
+elif env == "discovery":
+    PRETRAIN_LOG_PATH = "/isi/music/auditoryimagery2/seanthesis/pretrain_logs/"
 
 COOL_DIVIDEND=420-3 #sweetspot for voxel space dimension, will vary by ROI, but STG is 420 (after the 3 token dimensions are inserted)
 
-ATTENTION_HEADS = 2
+# 40 clips of 15 seconds with 1.5TR means 400 TRs per run.
+OPENGENRE_TRSPERRUN = 400
 
-EPOCHS = 4
+if env == "local":
+    ATTENTION_HEADS = 2
+    EPOCHS = 4
+elif env == "discovery":
+    ATTENTION_HEADS = 5
+    EPOCHS = 10

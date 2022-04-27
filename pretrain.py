@@ -37,7 +37,10 @@ if __name__ == "__main__":
             "EPOCHS" : EPOCHS,
             "LEARNING_RATE" : 0.00005,
             #Have to manually set the name of the folder whose training data you want to use, since there will be many
-            "data_dir" : "2022-04-15-13",
+            "data_dir" : "2022-04-25",
+            #Manually set the hemisphere and iteration number of the dataset you want to use in that folder
+            "hemisphere": "left",
+            "count" : "4",
             #manually set max_seq_length used in data creation, in the input CLS+seq+SEP+seq this is the max length of seq
             "max_sample_length":5
         }
@@ -55,17 +58,19 @@ if __name__ == "__main__":
             logcount+=1
             logfile = today_dir + "pretrain_log_" + str(logcount) + ".txt"
         log = open(logfile,"w")
-        logfile.write(str(now)+"\n")
+        log.write(str(now)+"\n")
+        # run_desc is potentially given in command line call
         if(run_desc is not None):
-            logfile.write(run_desc+"\n\n")
+            log.write(run_desc+"\n\n")
+            print(run_desc+"\n\n")
         #write hyperparameters to log
         for hp in hp_dict.keys():
             log.write(str(hp)+" : "+str(hp_dict[hp])+"\n")
 
         #load samples and labels
-        with open(hp_dict["data_path"] + "samples.p", "rb") as samples_fp:
+        with open(hp_dict["data_path"] + hp_dict["hemisphere"] + "_samples"+hp_dict["count"]+".p", "rb") as samples_fp:
             train_X = pickle.load(samples_fp)
-        with open(hp_dict["data_path"] + "labels.p", "rb") as labels_fp:
+        with open(hp_dict["data_path"] + hp_dict["hemisphere"] + "_labels"+hp_dict["count"]+".p", "rb") as labels_fp:
             train_Y = pickle.load(labels_fp)
         #train_X has shape (timesteps, max_length, voxel_dim)
         num_samples = len(train_X)
@@ -73,17 +78,18 @@ if __name__ == "__main__":
         assert (max_length == (hp_dict["max_sample_length"]*2 +2))
 
         voxel_dim = len(train_X[0][0])
-
+        print("voxel dim is "+str(voxel_dim))
+        print("num samples is "+str(num_samples))
         #convert to numpy arrays
         train_X = np.array(train_X)
         train_Y = np.array(train_Y)
+        print("train x has shape "+str(train_X.shape))
         #convert to tensors
         train_X = torch.from_numpy(train_X)
         train_Y = torch.from_numpy(train_Y)
 
         train_data = TrainData(train_X, train_Y) #make the TrainData object
         train_loader = DataLoader(dataset=train_data, batch_size=hp_dict["BATCH_SIZE"], shuffle=True) #make the DataLoader object
-        print("voxel dim is "+str(voxel_dim))
         log.write("voxel dim is "+str(voxel_dim)+"\n\n")
         MSK_token = [0, 1] + ([0] * (voxel_dim - 2))  # second dimension is reserved for msk_token flag
         MSK_token = np.array(MSK_token)
@@ -160,7 +166,7 @@ if __name__ == "__main__":
 
                 epoch_loss += loss.item()
                 epoch_acc += acc.item()
-
+                log.write("added "+str(acc.item())+" to epoch_acc")
             print(f'Epoch {e+0:03}: | Loss: {epoch_loss/len(train_loader):.5f} | Acc: {epoch_acc/len(train_loader):.3f}')
             log.write(f'Epoch {e+0:03}: | Loss: {epoch_loss/len(train_loader):.5f} | Acc: {epoch_acc/len(train_loader):.3f}')
             #print(f'Epoch {e+0:03}: | Loss: {epoch_loss/len(train_loader):.5f}')
