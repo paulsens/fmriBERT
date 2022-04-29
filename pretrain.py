@@ -37,10 +37,10 @@ if __name__ == "__main__":
             "EPOCHS" : EPOCHS,
             "LEARNING_RATE" : 0.00005,
             #Have to manually set the name of the folder whose training data you want to use, since there will be many
-            "data_dir" : "2022-04-25",
+            "data_dir" : "2022-04-28",
             #Manually set the hemisphere and iteration number of the dataset you want to use in that folder
             "hemisphere": "left",
-            "count" : "4",
+            "count" : "1",
             #manually set max_seq_length used in data creation, in the input CLS+seq+SEP+seq this is the max length of seq
             "max_sample_length":5
         }

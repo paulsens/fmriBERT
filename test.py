@@ -22,11 +22,18 @@ fullpath = path1 + dataset + path2 + subject + "/" + subject + path3
 #                 count+=1
 #
 # print("count is "+str(count))
+from Constants import *
+hemisphere="left"
+threshold="23"
+for sub in ["001", "002", "003", "004", "005"]:
+    iter = 0  # iterations of the next loop, resets per subject
+    # opengenre_preproc_path is defined in Constants.py
+    subdir = opengenre_preproc_path + "sub-sid" + sub + "/" + "sub-sid" + sub + "/"
+    # load voxel data and labels
+    with open(subdir + "STG_allruns" + hemisphere + "_t" + threshold + ".p", "rb") as data_fp:
+        all_data = pickle.load(data_fp)
+    with open(subdir + "labelindices_allruns.p", "rb") as label_fp:
+        all_labels = pickle.load(label_fp)
+    print(str(all_labels[0:20]))
 
-import torch
-
-list_of_tensors = [ torch.randn(3), torch.randn(3), torch.randn(3)]
-
-tensor_of_tensors = torch.stack(list_of_tensors)
-print(tensor_of_tensors) #shape (3,3)
-print(torch.argmax(tensor_of_tensors, dim=1)) #shape (3,3)
+    break

@@ -48,7 +48,12 @@ OPENGENRE_TRSPERRUN = 400
 
 if env == "local":
     ATTENTION_HEADS = 2
-    EPOCHS = 4
+    EPOCHS = 2
 elif env == "discovery":
     ATTENTION_HEADS = 5
     EPOCHS = 10
+
+#when the binary classi task is samegenre, and there are N samples from each genre,
+# then we could potentially have (N-1) yes pairs and another N-1 no pairs
+#  the amount we actually take is ((N-1)*SAMEGENRE_CROSSPAIRS_PERCENT)//100
+SAMEGENRE_CROSSPAIRS_PERCENT = 100
