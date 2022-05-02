@@ -40,7 +40,7 @@ for sub in ["001", "002", "003", "004", "005"]:
     with open(subdir + "labelindices_allruns.p", "rb") as label_fp:
         all_labels = pickle.load(label_fp)
 
-def make_pretraining_data(threshold, hemisphere, seq_len=5, num_copies=1, test_copies=4, allowed_genres=range(0,10), standardize=1, detrend="spline", within_subjects=1, binary="same_genre", multiclass="genre_decode", verbose=1):
+def make_pretraining_data(threshold, hemisphere, seq_len=5, num_copies=1, test_copies=4, allowed_genres=range(0,10), standardize=1, detrend="linear", within_subjects=1, binary="same_genre", multiclass="genre_decode", verbose=1):
     #runs_dict is defined in Constants.py
     test_runs = runs_dict["Test"]
     training_runs = runs_dict["Training"]
@@ -101,10 +101,6 @@ def make_pretraining_data(threshold, hemisphere, seq_len=5, num_copies=1, test_c
         #print("length of voxel data after applying test_copies "+str(len(voxel_data)))
         #print("length of labels after applying test_copies is "+str(len(labels)))
 
-        #detrend contains the name of the detrending we want, e.g linear or spline, within subjects is a binary flag
-        # function is defined in helpers.py
-        if(detrend!=None and within_subjects):
-            voxel_data=detrend_flattened(voxel_data, detrend)
 
         #if the standardize flag is set, set mean to zero and variance to 1
         #function is defined in helpers.py
@@ -134,53 +130,68 @@ def make_pretraining_data(threshold, hemisphere, seq_len=5, num_copies=1, test_c
         #     count = count+1
         #     iter = iter+1
 
-def detrend_flattened(voxel_data, detrend="linear"):
+def detrend_flattened(voxel_data, detrend, sub):
     # each voxel is detrended independently so fix the voxel i.e the column and loop over the timesteps
     n_columns = len(voxel_data[0])
     n_rows = len(voxel_data)
     x_train = range(0, n_rows)
     x_train=np.array(x_train)
     voxel_data = np.array(voxel_data)
-    detrend_data=np.zeros(voxel_data.shape)
     n_plotpoints = 7200
     y_plots=[]
-    model=None
     # dimensions 0, 1, and 2 in voxel space are just token dimensions, don't detrend those
     for voxel in range(3, n_columns):
         y_train = voxel_data[:,voxel]
-        maxv = max(x_train)
-        minv = min(x_train)
+        y_plot = np.zeros(n_plotpoints)
+        if(sub=="001" and voxel==200):
+            maxv = max(x_train)
+            minv = min(x_train)
+            # whole range we want to plot
+            x_plot = np.linspace(0, n_rows-1, n_plotpoints)
+            for i in range(0, n_plotpoints):
+                x_plot[i]=x_plot[i]//1
+                y_plot[i] = y_train[int(x_plot[i])]
+            # create 2D-array versions of these arrays to feed to transformers
+            X_train = x_train[:, np.newaxis]
+            X_plot = x_plot[:, np.newaxis]
 
-        X_train = x_train[:, np.newaxis]
+            # plot function
+            lw = 2
+            fig, ax = plt.subplots()
+            fig2, ax2 = plt.subplots()
+            fig3, ax3 = plt.subplots()
+            fig4, ax4 = plt.subplots()
+            fig5, ax5 = plt.subplots()
+            ax.set_prop_cycle(
+                color=["black", "teal", "yellowgreen", "gold", "darkorange", "tomato"]
+            )
+            ax.plot(x_train, y_train, linewidth=lw, label="ground truth")
 
-        # either train a linear regressor as michael recommends
-        #  or train a cubic spline as concluded by Tanabe et al. (2002)
-        #   the detrend variable is given as a parameter to the parent function, make_pretraining_data
-        if(detrend=="linear"):
-            model = make_pipeline(PolynomialFeatures(1), Ridge(alpha=1e-3))
+            # polynomial features
+            for degree in [1, 2, 3]:
+                model = make_pipeline(PolynomialFeatures(degree), Ridge(alpha=1e-3))
+                model.fit(X_train, y_train)
+                y_plot = model.predict(X_plot)
+                y_plots.append(y_plot.copy())
+                ax.plot(x_plot, y_plot, label=f"degree {degree}")
+
+            # B-spline with 4 + 3 - 1 = 6 basis functions
+            model = make_pipeline(SplineTransformer(n_knots=5, degree=3), Ridge(alpha=1e-3))
             model.fit(X_train, y_train)
 
-        # in this case, the variable looks like "splineXY" with X the knots and Y the degree
-        #  generally Y should only be 3, i.e cubic spline
-        elif(detrend[:6]=="spline"):
+            y_plot = model.predict(X_plot)
+            y_plots.append(y_plot.copy())
+            vmax=max(y_train)
+            vmin=min(y_train)
+            ax.plot(x_plot, y_plot, label="B-spline")
+            ax.legend(loc="lower center")
+            ax.set_ylim(vmin-5, vmax+5)
 
-            knots=int(detrend[6]) #number of points to get smooth degree derivatives around
-            thedegree=int(detrend[7])
-            model = make_pipeline(SplineTransformer(n_knots=knots, degree=thedegree), Ridge(alpha=1e-3))
-            model.fit(X_train, y_train)
-
-        y_pred = model.predict(X_train) #get the values of the regression line
-
-        y_resid = y_train - y_pred #get the residuals by subtracting off the regression line
-        for j in range(0, n_rows):
-            detrend_data[j][voxel]=y_resid[j]
-
-    # detrending should be done
-    return detrend_data.tolist()
-
-
-
-
+            ax2.plot(x_plot, y_train - y_plots[0], c="teal")
+            ax3.plot(x_plot, y_train - y_plots[1], c="yellowgreen")
+            ax4.plot(x_plot, y_train - y_plots[2], c="gold")
+            ax5.plot(x_plot, y_train - y_plots[3], c="darkorange")
+            plt.show()
 
 
 if __name__=="__main__":
@@ -189,5 +200,4 @@ if __name__=="__main__":
     #threshold only 23 right now
     #num_copies is the number of positive and negative training samples to create from each left-hand sample
     #allowed_genres is a list of what it sounds like, remember range doesn't include right boundary
-    #detrend is either None, Linear, or SplineXY with X the number of knots and Y the degree (3 for cubic spline)
-    make_pretraining_data("23", hemisphere="left", seq_len=5, num_copies=5, standardize=1, detrend="linear", within_subjects=1, allowed_genres=range(0,10))
+    make_pretraining_data("23", hemisphere="left", seq_len=5, num_copies=5, standardize=1, detrend="spline", within_subjects=1, allowed_genres=range(0,10))

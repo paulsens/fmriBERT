@@ -12,7 +12,9 @@ from datetime import datetime
 from torch.utils.data import Dataset
 from math import sqrt
 import copy
-
+from sklearn.linear_model import Ridge
+from sklearn.preprocessing import PolynomialFeatures, SplineTransformer
+from sklearn.pipeline import make_pipeline
 
 class TrainData(Dataset):
     def __init__(self, X_data, y_data):
@@ -260,7 +262,49 @@ def standardize_flattened(voxel_data):
 
     return stand
 
+def detrend_flattened(voxel_data, detrend="linear"):
+    # each voxel is detrended independently so fix the voxel i.e the column and loop over the timesteps
+    n_columns = len(voxel_data[0])
+    n_rows = len(voxel_data)
+    x_train = range(0, n_rows)
+    x_train=np.array(x_train)
+    voxel_data = np.array(voxel_data)
+    detrend_data=np.zeros(voxel_data.shape)
+    n_plotpoints = 7200
+    y_plots=[]
+    model=None
+    # dimensions 0, 1, and 2 in voxel space are just token dimensions, don't detrend those
+    for voxel in range(3, n_columns):
+        y_train = voxel_data[:,voxel]
+        maxv = max(x_train)
+        minv = min(x_train)
 
+        X_train = x_train[:, np.newaxis]
+
+        # either train a linear regressor as michael recommends
+        #  or train a cubic spline as concluded by Tanabe et al. (2002)
+        #   the detrend variable is given as a parameter to the parent function, make_pretraining_data
+        if(detrend=="linear"):
+            model = make_pipeline(PolynomialFeatures(1), Ridge(alpha=1e-3))
+            model.fit(X_train, y_train)
+
+        # in this case, the variable looks like "splineXY" with X the knots and Y the degree
+        #  generally Y should only be 3, i.e cubic spline
+        elif(detrend[:6]=="spline"):
+
+            knots=int(detrend[6]) #number of points to get smooth degree derivatives around
+            thedegree=int(detrend[7])
+            model = make_pipeline(SplineTransformer(n_knots=knots, degree=thedegree), Ridge(alpha=1e-3))
+            model.fit(X_train, y_train)
+
+        y_pred = model.predict(X_train) #get the values of the regression line
+
+        y_resid = y_train - y_pred #get the residuals by subtracting off the regression line
+        for j in range(0, n_rows):
+            detrend_data[j][voxel]=y_resid[j]
+
+    # detrending should be done
+    return detrend_data.tolist()
 
 
 
