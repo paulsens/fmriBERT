@@ -14,6 +14,7 @@ import datetime
 
 if __name__ == "__main__":
     with torch.autograd.set_detect_anomaly(True):
+        thiscount=None #gets changed if a count is passed as a command line argument
         #get command line arguments and options
         opts = [opt for opt in sys.argv[1:] if opt.startswith("-")]
         args = [arg for arg in sys.argv[1:] if not arg.startswith("-")]
@@ -22,25 +23,33 @@ if __name__ == "__main__":
             run_desc = args[-1]
         else:
             run_desc = None
+        if "-gpu" in opts:
+            gpunum=args[-2] #currently only works if only one gpu is given
+            device = torch.device("cuda:"+str(gpunum))
+        else:
+            device="cpu"
+        if "-count" in opts:
+            thiscount=int(args[-2])
         today = datetime.date.today()
         now = datetime.datetime.now()
         ##############################  SET PARAMETERS  ##############################
         #device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         #dictionary of hyperparameters, eventually should probably come from command line
         hp_dict={
+            "task":"binaryonly",
             "COOL_DIVIDEND" : COOL_DIVIDEND,
             "ATTENTION_HEADS" : ATTENTION_HEADS,
-            "device" : "cpu",
+            "device" : str(device),
             "MSK_flag" : 1,
             "CLS_flag" : 1,
             "BATCH_SIZE" : 1,
             "EPOCHS" : EPOCHS,
-            "LEARNING_RATE" : 0.00005,
+            "LEARNING_RATE" : 0.0001,
             #Have to manually set the name of the folder whose training data you want to use, since there will be many
-            "data_dir" : "2022-04-28",
+            "data_dir" : "2022-05-04",
             #Manually set the hemisphere and iteration number of the dataset you want to use in that folder
             "hemisphere": "left",
-            "count" : "1",
+            "count" : "0",
             #manually set max_seq_length used in data creation, in the input CLS+seq+SEP+seq this is the max length of seq
             "max_sample_length":5
         }
@@ -49,10 +58,12 @@ if __name__ == "__main__":
 
         #set up logfile, PRETRAIN_LOG_PATH is defined in Constants.py
         today_dir = PRETRAIN_LOG_PATH+str(today)+"/"
-        if not (os.path.exists(today_dir)):
-            os.mkdir(today_dir)
-
-        logcount=0
+        # if not (os.path.exists(today_dir)):
+        #     os.mkdir(today_dir)
+        if(thiscount!=None):
+            logcount=thiscount
+        else:
+            logcount=0
         logfile = today_dir + "pretrain_log_"+str(logcount)+".txt"
         while (os.path.exists(logfile)):
             logcount+=1
@@ -129,7 +140,7 @@ if __name__ == "__main__":
                     ytrue_dist_multi = np.zeros((10,)) #we want a one-hot probability distrubtion over the 10 genre labels
                     ytrue_dist_multi[ytrue_multi_idx]=1 #set all the probability mass on the true index
                     ytrue_multi_batch.append(ytrue_dist_multi)
-                    X_batch[x][mask_choice] = MSK_token
+                    X_batch[x][mask_choice] = MSK_token.copy()
                     batch_mask_indices.append(mask_choice)
                 for y in range(0,hp_dict["BATCH_SIZE"]):
                     if(y_batch[y][0]):
@@ -147,19 +158,23 @@ if __name__ == "__main__":
                 #returns predictions for binary class and multiclass, in that order
                 ypred_bin_batch,ypred_multi_batch = model(X_batch, batch_mask_indices)
 
-                log.write("For binary classification, predictions are "+str(ypred_bin_batch)+" and true labels are "+str(ytrue_bin_batch)+"\n")
+                #log.write("For binary classification, predictions are "+str(ypred_bin_batch)+" and true labels are "+str(ytrue_bin_batch)+"\n")
                 loss_bin = criterion_bin(ypred_bin_batch, ytrue_bin_batch)
-                log.write("The loss in that case was "+str(loss_bin)+"\n")
-                log.write("For genre classification, predictions are "+str(ypred_multi_batch)+" and true labels are "+str(ytrue_multi_batch)+"\n")
+                #log.write("The loss in that case was "+str(loss_bin)+"\n")
+                #log.write("For genre classification, predictions are "+str(ypred_multi_batch)+" and true labels are "+str(ytrue_multi_batch)+"\n")
                 loss_multi = criterion_multi(ypred_multi_batch, ytrue_multi_batch)
-                log.write("The loss in that case was "+str(loss_multi)+"\n\n")
+                #log.write("The loss in that case was "+str(loss_multi)+"\n\n")
 
-                #loss = (loss_bin+loss_multi)/2 #as per devlin et al, loss is the average of the two tasks' losses
-                loss = loss_bin #toy example for just same-genre task
-                #loss = loss_multi
-                #acc = get_accuracy(ypred_multi_batch, ytrue_multi_batch, log)
-                acc = get_accuracy(ypred_bin_batch, ytrue_bin_batch, log)
-                log.write("The total loss this iteration was "+str(loss)+"\n\n")
+                if hp_dict["task"] == "binaryonly":
+                    loss = loss_bin #toy example for just same-genre task
+                    acc = get_accuracy(ypred_bin_batch, ytrue_bin_batch, log)
+                if hp_dict["task"] == "multionly":
+                    loss = loss_multi
+                    acc = get_accuracy(ypred_multi_batch, ytrue_multi_batch, log)
+                else:
+                    loss = (loss_bin+loss_multi)/2 #as per devlin et al, loss is the average of the two tasks' losses
+                    acc = 0
+                #log.write("The total loss this iteration was "+str(loss)+"\n\n")
 
                 loss.backward()
                 optimizer.step()
@@ -172,9 +187,40 @@ if __name__ == "__main__":
             #print(f'Epoch {e+0:03}: | Loss: {epoch_loss/len(train_loader):.5f}')
             #log.write(f'Epoch {e+0:03}: | Loss: {epoch_loss/len(train_loader):.5f}')
 
+
+        # training is done, load in the test data
+        #  recall that the mask tokens are already applied to this data for consistent results
+        this_dir = hp_dict["data_path"]+hp_dict["hemisphere"]+"_"
+        with open(this_dir+"testX"+hp_dict["count"]+".p", "rb") as testX_fp:
+            test_X = pickle.load(testX_fp)
+        with open(this_dir+"testY_bin"+hp_dict["count"]+".p", "rb") as testY_bin_fp:
+            testY_bin = pickle.load(testY_bin_fp)
+        with open(this_dir+"testY_multi"+hp_dict["count"]+".p", "rb") as testY_multi_fp:
+            testY_multi = pickle.load(testY_multi_fp)
+        with open(this_dir+"test_maskidxs"+hp_dict["count"]+".p", "rb") as test_maskidxs_fp:
+            test_maskidxs = pickle.load(test_maskidxs_fp)
+
+        with torch.no_grad():
+            model.eval()
+
+            ypred_bin, ypred_multi = model(test_X, test_maskidxs)
+            if hp_dict["task"]=="binaryonly":
+                test_loss = criterion_bin(ypred_bin, testY_bin)
+                acc = get_accuracy(ypred_bin, testY_bin, None)
+
+            elif hp_dict["task"]=="multionly":
+                test_loss = criterion_multi(ypred_multi, testY_multi)
+                acc = get_accuracy(ypred_multi, testY_multi, None)
+
+            else:
+                # when training both simultaneously, as per devlin et al
+                test_loss = criterion_bin(ypred_bin, testY_bin) + criterion_multi(ypred_multi, testY_multi)
+                test_loss = test_loss/2
+
+            print("for test data, loss was "+str(test_loss)+" and accuracy was "+str(acc)+"\n")
+
+        # save the weights of the model, not sure if this actually works
+        model_path = opengenre_preproc_path+"trained_models/trained_"+str(thiscount)+".pt"
+        torch.save(model.state_dict(),model_path)
+
     log.close()
-
-
-        #model = torch.load("/Users/sean/Desktop/current_research/fmriBERTfix/fmriBERT/pitchclass/experiment1.pt")
-        #model.eval()
-
