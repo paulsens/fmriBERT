@@ -5,7 +5,8 @@ import numpy as np
 from helpers import *
 from voxel_transformer import *
 from pitchclass_data import *
-from torch.utils.data import DataLoader
+from torch.utils.data import DataLoader, Subset
+from sklearn.model_selection import train_test_split
 import torch.optim as optim
 from Constants import *
 import sys
@@ -99,8 +100,11 @@ if __name__ == "__main__":
         train_X = torch.from_numpy(train_X)
         train_Y = torch.from_numpy(train_Y)
 
-        train_data = TrainData(train_X, train_Y) #make the TrainData object
-        train_loader = DataLoader(dataset=train_data, batch_size=hp_dict["BATCH_SIZE"], shuffle=True) #make the DataLoader object
+        all_data = TrainData(train_X, train_Y) #make the TrainData object
+        #train_val_dataset defined in helpers, val_split defined in Constants
+        train_dataset, val_dataset = train_val_dataset(all_data, val_split)
+        train_loader = DataLoader(dataset=train_dataset, batch_size=hp_dict["BATCH_SIZE"], shuffle=True) #make the DataLoader object
+        val_loader = DataLoader(dataset=val_dataset, batch_size=hp_dict["BATCH_SIZE"], shuffle=True)
         log.write("voxel dim is "+str(voxel_dim)+"\n\n")
         MSK_token = [0, 1] + ([0] * (voxel_dim - 2))  # second dimension is reserved for msk_token flag
         MSK_token = np.array(MSK_token)
@@ -118,10 +122,12 @@ if __name__ == "__main__":
         criterion_multi = nn.CrossEntropyLoss()
         optimizer = optim.Adam(model.parameters(), lr=hp_dict["LEARNING_RATE"], betas=(0.5,0.9), weight_decay=0.0001)
 
-        model.train() #sets model status, doesn't actually start training
         for e in range(1, hp_dict["EPOCHS"]+1):
+            model.train()  # sets model status, doesn't actually start training
+                #need the above every epoch because the validation part below sets model.eval()
             epoch_loss = 0
             epoch_acc = 0
+
             for X_batch, y_batch in train_loader:
                 batch_mask_indices = []
                 X_batch, y_batch = X_batch.to(hp_dict["device"]), y_batch.to(hp_dict["device"])
@@ -182,8 +188,79 @@ if __name__ == "__main__":
                 epoch_loss += loss.item()
                 epoch_acc += acc.item()
                 log.write("added "+str(acc.item())+" to epoch_acc")
+
+            # now calculate validation loss/acc, turn off gradient
+            with torch.no_grad():
+                val_loss=0
+                val_acc=0
+                for X_val, y_val in val_loader:
+                    model.eval() #set the model to evaluation mode
+
+                    val_mask_indices = []
+                    X_batch, y_batch = X_batch.to(hp_dict["device"]), y_batch.to(hp_dict["device"])
+
+                    ytrue_bin_batch = []  # list of batch targets for binary classification task
+                    ytrue_multi_batch = []  # list of batch targets for multi-classification task
+                    for x in range(0, hp_dict["BATCH_SIZE"]):
+                        mask_choice = randint(1, 10)  # pick a token to mask
+                        if (mask_choice >= 6):
+                            mask_choice += 1  # dont want to mask the SEP token at index 6, so 6-10 becomes 7-11
+                            # each element in the batch has 3 values, same_genre boolean, first half genre, second half genre
+                            # so if we're masking an element of the second half, the genre decoding label should be that half's genre
+                            ytrue_multi_idx = y_val[x][2]
+                        else:
+                            ytrue_multi_idx = y_val[x][1]
+                        ytrue_dist_multi = np.zeros(
+                            (10,))  # we want a one-hot probability distrubtion over the 10 genre labels
+                        ytrue_dist_multi[ytrue_multi_idx] = 1  # set all the probability mass on the true index
+                        ytrue_multi_batch.append(ytrue_dist_multi)
+                        X_val[x][mask_choice] = MSK_token.copy()
+                        val_mask_indices.append(mask_choice)
+                    for y in range(0, hp_dict["BATCH_SIZE"]):
+                        if (y_val[y][0]):
+                            ytrue_dist_bin = [0, 1]  # true, they are the same genre
+                        else:
+                            ytrue_dist_bin = [1, 0]  # false
+                        ytrue_bin_batch.append(
+                            ytrue_dist_bin)  # should give a list BATCHSIZE many same_genre boolean targets
+
+                    # convert label lists to pytorch tensors
+                    ytrue_bin_batch = np.array(ytrue_bin_batch)
+                    ytrue_multi_batch = np.array(ytrue_multi_batch)
+                    ytrue_bin_batch = torch.from_numpy(ytrue_bin_batch).float()
+                    ytrue_multi_batch = torch.from_numpy(ytrue_multi_batch).float()
+
+                    # returns predictions for binary class and multiclass, in that order
+                    ypred_bin_batch, ypred_multi_batch = model(X_val, val_mask_indices)
+
+                    # log.write("For binary classification, predictions are "+str(ypred_bin_batch)+" and true labels are "+str(ytrue_bin_batch)+"\n")
+                    loss_bin = criterion_bin(ypred_bin_batch, ytrue_bin_batch)
+                    # log.write("The loss in that case was "+str(loss_bin)+"\n")
+                    # log.write("For genre classification, predictions are "+str(ypred_multi_batch)+" and true labels are "+str(ytrue_multi_batch)+"\n")
+                    loss_multi = criterion_multi(ypred_multi_batch, ytrue_multi_batch)
+                    # log.write("The loss in that case was "+str(loss_multi)+"\n\n")
+
+                    if hp_dict["task"] == "binaryonly":
+                        loss = loss_bin  # toy example for just same-genre task
+                        acc = get_accuracy(ypred_bin_batch, ytrue_bin_batch, log)
+                    if hp_dict["task"] == "multionly":
+                        loss = loss_multi
+                        acc = get_accuracy(ypred_multi_batch, ytrue_multi_batch, log)
+                    else:
+                        loss = (
+                                           loss_bin + loss_multi) / 2  # as per devlin et al, loss is the average of the two tasks' losses
+                        acc = 0
+                    # log.write("The total loss this iteration was "+str(loss)+"\n\n")
+
+                    val_loss += loss.item()
+                    val_acc += acc.item()
+
             print(f'Epoch {e+0:03}: | Loss: {epoch_loss/len(train_loader):.5f} | Acc: {epoch_acc/len(train_loader):.3f}')
+            print(f'Validation: | Loss: {val_loss/len(val_loader):.5f} | Acc: {val_acc/len(val_loader):.3f}')
+
             log.write(f'Epoch {e+0:03}: | Loss: {epoch_loss/len(train_loader):.5f} | Acc: {epoch_acc/len(train_loader):.3f}')
+            log.write(f'Validation: | Loss: {val_loss/len(val_loader):.5f} | Acc: {val_acc/len(val_loader):.3f}')
+
             #print(f'Epoch {e+0:03}: | Loss: {epoch_loss/len(train_loader):.5f}')
             #log.write(f'Epoch {e+0:03}: | Loss: {epoch_loss/len(train_loader):.5f}')
 
@@ -218,9 +295,9 @@ if __name__ == "__main__":
                 test_loss = test_loss/2
 
             print("for test data, loss was "+str(test_loss)+" and accuracy was "+str(acc)+"\n")
-
+            log.write("for test data, loss was "+str(test_loss)+" and accuracy was "+str(acc)+"\n")
         # save the weights of the model, not sure if this actually works
-        model_path = opengenre_preproc_path+"trained_models/trained_"+str(thiscount)+".pt"
+        model_path = opengenre_preproc_path+"trained_models/"+hp_dict["task"]+"/trained_"+str(thiscount)+".pt"
         torch.save(model.state_dict(),model_path)
 
     log.close()

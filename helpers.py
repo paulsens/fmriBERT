@@ -9,7 +9,8 @@ import pandas as pd
 from Constants import *
 from random import randint
 from datetime import datetime
-from torch.utils.data import Dataset
+from torch.utils.data import Dataset, DataLoader, Subset
+from sklearn.model_selection import train_test_split
 from math import sqrt
 import copy
 from sklearn.linear_model import Ridge
@@ -323,3 +324,10 @@ if __name__=="__main__":
     #mask_flatten_combine_opengenre("right", "23")
     #make_pretraining_data("23", "left")
     print("none")
+
+def train_val_dataset(dataset, val_split=0.1):
+    train_idx, val_idx = train_test_split(list(range(len(dataset))), test_size=val_split)
+    datasets = {}
+    datasets["train"] = Subset(dataset, train_idx)
+    datasets["val"] = Subset(dataset, val_idx)
+    return datasets

@@ -43,6 +43,8 @@ elif env == "discovery":
 
 COOL_DIVIDEND=420-3 #sweetspot for voxel space dimension, will vary by ROI, but STG is 420 (after the 3 token dimensions are inserted)
 
+val_split = 0.1
+
 # 40 clips of 15 seconds with 1.5TR means 400 TRs per run.
 OPENGENRE_TRSPERRUN = 400
 
