@@ -13,6 +13,8 @@ from torch.utils.data import Dataset
 from helpers import standardize_flattened, detrend_flattened
 import random
 
+
+
 # make the pretraining datasets according to several parameters
 #  the first is the probability threshold for inclusion in STG as a string, e.g "23", the second is "left" or "right"
 #   the third is the length of each half of the sample either 5 or 10, num_copies is the number of positive and negative training samples to create from each left-hand reference sample, test_copies is the number of repetitions we want from the -test- runs, from 1 to 4. Recall that each test run is the same 10 clips repeated four times. Default is 1, i.e each set of 10 only once/only the first ten from each test run.

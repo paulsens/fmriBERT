@@ -1,5 +1,6 @@
 import torch
 import torch.nn as nn
+import random
 from random import randint
 import numpy as np
 from helpers import *
@@ -14,6 +15,11 @@ import os
 import datetime
 
 val_flag=0
+random.seed(5)
+#datachoice = "old"
+datachoice="new"
+#modelchoice="old"
+modelchoce="new"
 
 if __name__ == "__main__":
     with torch.autograd.set_detect_anomaly(True):
@@ -174,7 +180,8 @@ if __name__ == "__main__":
                     ytrue_dist_multi = np.zeros((10,)) #we want a one-hot probability distrubtion over the 10 genre labels
                     ytrue_dist_multi[ytrue_multi_idx]=1 #set all the probability mass on the true index
                     ytrue_multi_batch.append(ytrue_dist_multi)
-                    X_batch[x][mask_choice] = torch.clone(MSK_token)
+                    X_batch[x][mask_choice] = MSK_token
+                    #X_batch[x][mask_choice] = torch.clone(MSK_token)
                     batch_mask_indices.append(mask_choice)
                 for y in range(0,hp_dict["BATCH_SIZE"]):
                     if(y_batch[y][0]):
