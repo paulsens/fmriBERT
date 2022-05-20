@@ -22,6 +22,7 @@ def make_pretraining_data(threshold, hemisphere,  allowed_genres, seq_len=5, num
     #runs_dict is defined in Constants.py
     test_runs = runs_dict["Test"]
     training_runs = runs_dict["Training"]
+    random.seed(3)  # for testing that needs reproducibility
 
     #size of left or right STG voxel space, with 3 token dimensions already added in
     voxel_dim = COOL_DIVIDEND+3 #defined in Constants.py
@@ -130,13 +131,21 @@ def make_pretraining_data(threshold, hemisphere,  allowed_genres, seq_len=5, num
 
     #test_split is given as a parameter to make_pretraining_data is an integer, ie 10 means 10%, so divide by 100
     n_test = int((test_split/100)*len(ref_samples))
-    test_idxs = random.sample(range(0,len(ref_samples)), n_test)
-    #give each subject their own list of test_data and test labels to preserve within_subject functionality
-    test_data_dict = {"001":[],"002":[],"003":[],"004":[],"005":[]}
-    test_label_dict = {"001":[],"002":[],"003":[],"004":[],"005":[]}
-    test_genre_count = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
-    tdd = test_data_dict #just a shorthand
-    test_count=0
+    if(n_test != 0):
+        test_idxs = random.sample(range(0,len(ref_samples)), n_test)
+        #give each subject their own list of test_data and test labels to preserve within_subject functionality
+        test_data_dict = {"001":[],"002":[],"003":[],"004":[],"005":[]}
+        test_label_dict = {"001":[],"002":[],"003":[],"004":[],"005":[]}
+        test_genre_count = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
+        tdd = test_data_dict #just a shorthand
+        test_count=0
+    else:
+        test_idxs = None
+        test_data_dict = None
+        test_label_dict = None
+        test_genre_count = 0
+        tdd = None
+        test_count = 0
 
     # for each left-hand sample, create num_copies positive and negative training samples
     for i in range(0, len(ref_samples)):
@@ -149,19 +158,20 @@ def make_pretraining_data(threshold, hemisphere,  allowed_genres, seq_len=5, num
         lh_genre = ref_genres[i] # genre of left-hand sample
         if lh_genre not in allowed_genres:
             continue #skip the rest of this iteration
-        if i in test_idxs:
-            #make a new list for the test data, might be able to just use ref_samples[i] but being safe for now
-            # with a new list
-            test_left=[]
-            test_label = ref_genres[i]
-            test_genre_count[int(test_label)]+=1 # add one to the counter for that genre
-            for k in range(0, seq_len):
-                test_left.append(ref_samples[i][k])
-            test_data_dict[sub_id].append(test_left)
-            test_label_dict[sub_id].append(test_label)
-            test_count+=1 # increment count of test leftsamples
-            #dont do the stuff below if this index was assigned to be test data
-            continue
+        if n_test != 0:
+            if i in test_idxs:
+                #make a new list for the test data, might be able to just use ref_samples[i] but being safe for now
+                # with a new list
+                test_left=[]
+                test_label = ref_genres[i]
+                test_genre_count[int(test_label)]+=1 # add one to the counter for that genre
+                for k in range(0, seq_len):
+                    test_left.append(ref_samples[i][k])
+                test_data_dict[sub_id].append(test_left)
+                test_label_dict[sub_id].append(test_label)
+                test_count+=1 # increment count of test leftsamples
+                #dont do the stuff below if this index was assigned to be test data
+                continue
         for copy in range(0, num_copies):
             input_pos = [CLS] #create positive sample, get a new address for each iteration
             input_neg = [CLS] #create negative sample, get a new address for each iteration
@@ -178,14 +188,16 @@ def make_pretraining_data(threshold, hemisphere,  allowed_genres, seq_len=5, num
                 else: #pick one of the subjects at random to pair it with, including themself
                     dict_key = randint(1,5)
                     dict_key = "00"+str(dict_key)
+
                 partner = random.choice(sub_genre_sample_dict[dict_key][lh_genre]) #all other reference indices of this genre for whichever subject was chosen
                 # this seems roundabout, but if within_subjects is not set this is functionally the same as picking one at random from a complete list, while also allowing mostly re-used code if within_subjects is set
                 #basically, i did it this way to allow the most overlap in code whether within_subjects is set or not
 
                 if partner in pos_partners: #did we put this on the right side of this left sample already?
                     partner=i #if so, keep the loop going
-                elif partner in test_idxs:
-                    partner=i #continue the loop if this index is assigned to test_data, we dont want
+                elif n_test != 0:
+                    if partner in test_idxs:
+                        partner=i #continue the loop if this index is assigned to test_data, we dont want
                                # test data indices on the left OR right side of training samples
                 else:
                     pos_partners.append(partner) #otherwise put it in the list and we'll exit the loop
@@ -208,8 +220,9 @@ def make_pretraining_data(threshold, hemisphere,  allowed_genres, seq_len=5, num
                 partner = random.choice(sub_genre_sample_dict[dict_key][rh_genre]) #all other reference indices of this genre
                 if partner in neg_partners: #did we put this on the right side of this left sample already?
                     partner=i #if so, keep the loop going
-                elif partner in test_idxs:
-                    partner=i # continue the loop if this index is assigned to test data, we dont want
+                elif n_test != 0:
+                    if partner in test_idxs:
+                        partner=i # continue the loop if this index is assigned to test data, we dont want
                                # test data indices on the left OR right side of training samples
                 else:
                     neg_partners.append(partner) #otherwise put it in the list and we'll exit the loop
@@ -229,37 +242,42 @@ def make_pretraining_data(threshold, hemisphere,  allowed_genres, seq_len=5, num
 
     if(verbose):
         print("Training_samples has length "+str(len(training_samples))+", and each element has length "+str(len(training_samples[0]))+". Each of those has length "+str(len(training_samples[0][0]))+".\n\n")
-        print("We collected "+str(test_count)+" leftsamples for test data. The counts in the test data for each genre are "+str(test_genre_count)+".\n")
-        for subj in test_data_dict.keys():
-            print("Subject "+str(subj)+" has "+str(len(test_data_dict[subj]))+" many leftsamples in the test data.\n")
+
+        if n_test != 0:
+            print("We collected " + str(
+                test_count) + " leftsamples for test data. The counts in the test data for each genre are " + str(
+                test_genre_count) + ".\n")
+            for subj in test_data_dict.keys():
+                print("Subject "+str(subj)+" has "+str(len(test_data_dict[subj]))+" many leftsamples in the test data.\n")
     #save training_samples and training_labels
     time = date.today()
-    this_dir = opengenre_preproc_path+"training_data/"+str(time)+"/"
+    this_dir = opengenre_preproc_path+"training_data/seeded/"+str(time)+"/"
     if not os.path.exists(this_dir):
         os.mkdir(this_dir)
     count = 0
 
     #set the last part of the filename by checking what already exists
-    this_file = this_dir+str(hemisphere)+"_samples"+str(count)+".p"
+    this_file = this_dir+str(hemisphere)+"_seededtrainsamplesorig"+str(count)+".p"
     while os.path.exists(this_file):
         count+=1
-        this_file = this_dir + str(hemisphere) + "_samples" + str(count) + ".p"
+        this_file = this_dir + str(hemisphere) + "_seededtrainsamplesorig" + str(count) + ".p"
 
     #save training data and labels
     with open(this_file,"wb") as samples_fp:
         pickle.dump(training_samples,samples_fp)
-    with open(this_dir+str(hemisphere)+"_labels"+str(count)+".p","wb") as labels_fp:
+    with open(this_dir+str(hemisphere)+"_seededtrainlabelsorig"+str(count)+".p","wb") as labels_fp:
         pickle.dump(training_labels,labels_fp)
 
     #save the test data and labels
-    with open(this_dir+str(hemisphere)+"_testdata"+str(count)+".p","wb") as testdata_fp:
-        pickle.dump(test_data_dict, testdata_fp)
-    with open(this_dir+str(hemisphere)+"_testlabels"+str(count)+".p","wb") as testlabels_fp:
-        pickle.dump(test_label_dict,testlabels_fp)
+    if n_test != 0:
+        with open(this_dir+str(hemisphere)+"_testdata"+str(count)+".p","wb") as testdata_fp:
+            pickle.dump(test_data_dict, testdata_fp)
+        with open(this_dir+str(hemisphere)+"_testlabels"+str(count)+".p","wb") as testlabels_fp:
+            pickle.dump(test_label_dict,testlabels_fp)
 
     #save metadata
     with open(this_dir+str(hemisphere)+"_metadata"+str(count)+".txt","w") as meta_fp:
-        meta_fp.write("Trying to modularize the number of left-sample repetitions, added a positive and negative sample for each left-sample, so total number of left-sample samples is num_copies*2."+
+        meta_fp.write("Creating training data with no runs held out and seeded RNG to compare to original code.\n"+
                 "\nnum_samples:"+str(len(training_samples))+
                 "\nallowed_genres:"+str(allowed_genres)+
                 "\nthreshold:"+str(threshold)+
@@ -279,4 +297,4 @@ if __name__=="__main__":
     #threshold only 23 right now
     #num_copies is the number of positive and negative training samples to create from each left-hand sample
     #allowed_genres is a list of what it sounds like, remember range doesn't include right boundary
-    make_pretraining_data("23", hemisphere="left", seq_len=5, num_copies=1, standardize=1, detrend="linear", within_subjects=1, allowed_genres=range(0,10), test_split=10)
+    make_pretraining_data("23", hemisphere="left", seq_len=5, num_copies=1, standardize=1, detrend="linear", within_subjects=1, allowed_genres=range(0,10), test_split=0)

@@ -218,14 +218,14 @@ def get_accuracy(y_pred, y_true, log=None):
     true_idxs = torch.argmax(y_true, dim=1)
 
     correct_sum = (prediction_idxs == true_idxs).sum().float()
-    if(log is  not None):
-        log.write("prediction idx are " + str(prediction_idxs))
-        log.write("true idxs are " + str(true_idxs))
-        log.write("correct sum is "+str(correct_sum))
+    # if(log is  not None):
+    #     log.write("prediction idx are " + str(prediction_idxs))
+    #     log.write("true idxs are " + str(true_idxs))
+    #     log.write("correct sum is "+str(correct_sum))
     acc = correct_sum/y_true.shape[0]
     acc = torch.round(acc*100)
-    if(log is not None):
-        log.write("accuracy for this batch was "+str(acc))
+    # if(log is not None):
+    #     log.write("accuracy for this batch was "+str(acc))
     return acc
 
 #treat each voxel as a channel
