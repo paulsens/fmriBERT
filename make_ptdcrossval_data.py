@@ -12,17 +12,19 @@ from datetime import date
 from torch.utils.data import Dataset
 from helpers import standardize_flattened, detrend_flattened
 import random
-
+seed=3
+random.seed(seed)
+random_numbers=[]
 # make the pretraining datasets according to several parameters
 #  the first is the probability threshold for inclusion in STG as a string, e.g "23", the second is "left" or "right"
 #   the third is the length of each half of the sample either 5 or 10, num_copies is the number of positive and negative training samples to create from each left-hand reference sample, test_copies is the number of repetitions we want from the -test- runs, from 1 to 4. Recall that each test run is the same 10 clips repeated four times. Default is 1, i.e each set of 10 only once/only the first ten from each test run.
 #     The second to last two determine the CLS and MSK tasks that will be trained on.
 # the default allowed genres is all of them, 0 to 9 inclusive
-def make_ptdcrossval_data(threshold, hemisphere,  allowed_genres, seq_len=5, num_copies=1, test_copies=1, val_copies=1, standardize=1, detrend="linear", within_subjects=1, binary="same genre", multiclass="genre_decode", verbose=1):
+def make_ptdcrossval_data(threshold, hemisphere,  allowed_genres, seq_len=5, num_copies=1, test_copies=1, val_copies=1, standardize=1, detrend="linear", within_subjects=1, binary="nextseq", multiclass="genre_decode", verbose=1):
     #runs_dict is defined in Constants.py
     test_runs = runs_dict["Test"]
     training_runs = runs_dict["Training"]
-    random.seed(3)  # for testing that needs reproducibility
+ # for testing that needs reproducibility
 
     #size of left or right STG voxel space, with 3 token dimensions already added in
     voxel_dim = COOL_DIVIDEND+3 #defined in Constants.py
@@ -152,6 +154,10 @@ def make_ptdcrossval_data(threshold, hemisphere,  allowed_genres, seq_len=5, num
         for i in range(0, len(ref_samples)):
 
             sub_id = (i//samples_per_subject) + 1 #e.g 1100//500 = 2, and subject 3 has range 1000 to 1499 if samplespersubject is 500
+            sub_start = (sub_id - 1) * samples_per_subject
+            sub_end = sub_start + samples_per_subject - 1 #the last index that is included for that subject
+            if (verbose and i % 1000 == 0):
+                print("Sub start is {start}, and sub end is {end}".format(start=str(sub_start), end=str(sub_end)))
             startstop_list = sub_startstop_list[sub_id-1] #get holdout indices
             this_holdout_start=startstop_list[0]
             this_holdout_stop = startstop_list[1]
@@ -168,77 +174,119 @@ def make_ptdcrossval_data(threshold, hemisphere,  allowed_genres, seq_len=5, num
             lh_genre = ref_genres[i] # genre of left-hand sample
             if lh_genre not in allowed_genres:
                 continue #skip the rest of this iteration
+            if (binary == "same_genre"):
+                for copy in range(0, num_copies):
+                    input_pos = [CLS] #create positive sample, get a new address for each iteration
+                    input_neg = [CLS] #create negative sample, get a new address for each iteration
 
-            for copy in range(0, num_copies):
-                input_pos = [CLS] #create positive sample, get a new address for each iteration
-                input_neg = [CLS] #create negative sample, get a new address for each iteration
+                    # create positive training sample, so same genre
+                    rh_genre = lh_genre
+                    for j in range(0, seq_len):
+                        input_pos.append(ref_samples[i][j]) # fill left hand sample
+                    input_pos.append(SEP) #add separator token
+                    partner = i #initial condition for loop
+                    while partner==i: #find a new partner with the same genre
+                        if (within_subjects): #if within_subjects flag is set
+                            dict_key=sub_id #only look at the samples from this subject with this genre
+                        else: #pick one of the subjects at random to pair it with, including themself
+                            dict_key = randint(1,5)
+                            random_numbers.append(dict_key)
+                            dict_key = "00"+str(dict_key)
+                        partner = random.choice(sub_genre_sample_dict[dict_key][lh_genre]) #all other reference indices of this genre for whichever subject was chosen
+                        random_numbers.append(partner)
+                        # this seems roundabout, but if within_subjects is not set this is functionally the same as picking one at random from a complete list, while also allowing mostly re-used code if within_subjects is set
+                        #basically, i did it this way to allow the most overlap in code whether within_subjects is set or not
 
-                # create positive training sample, so same genre
-                rh_genre = lh_genre
-                for j in range(0, seq_len):
-                    input_pos.append(ref_samples[i][j]) # fill left hand sample
-                input_pos.append(SEP) #add separator token
-                partner = i #initial condition for loop
-                while partner==i: #find a new partner with the same genre
-                    if (within_subjects): #if within_subjects flag is set
-                        dict_key=sub_id #only look at the samples from this subject with this genre
-                    else: #pick one of the subjects at random to pair it with, including themself
-                        dict_key = randint(1,5)
-                        dict_key = "00"+str(dict_key)
-                    partner = random.choice(sub_genre_sample_dict[dict_key][lh_genre]) #all other reference indices of this genre for whichever subject was chosen
-                    # this seems roundabout, but if within_subjects is not set this is functionally the same as picking one at random from a complete list, while also allowing mostly re-used code if within_subjects is set
-                    #basically, i did it this way to allow the most overlap in code whether within_subjects is set or not
+                        if partner in pos_partners: #did we put this on the right side of this left sample already?
+                            partner=i #if so, keep the loop going
+                        if heldout: #if the left is heldout, the right needs to be heldout as well
+                            if not (this_holdout_start <= partner < this_holdout_stop): #if partner is not also held out
+                                partner=i #force partner to be from heldout samples if left sample is heldout
 
-                    if partner in pos_partners: #did we put this on the right side of this left sample already?
-                        partner=i #if so, keep the loop going
-                    if heldout: #if the left is heldout, the right needs to be heldout as well
-                        if not (this_holdout_start <= partner < this_holdout_stop): #if partner is not also held out
-                            partner=i #force partner to be from heldout samples if left sample is heldout
-
+                        else:
+                            pos_partners.append(partner) #otherwise put it in the list and we'll exit the loop
+                    for j in range(0, seq_len):
+                        input_pos.append(ref_samples[partner][j]) #fill partner as right hand sample
+                    pos_label = [1, lh_genre, rh_genre] #the labels for training, the 1 means same genre
+                    if heldout:
+                        val_samples.append(input_pos) #append to heldout validation set
+                        val_labels.append(pos_label)
                     else:
-                        pos_partners.append(partner) #otherwise put it in the list and we'll exit the loop
-                for j in range(0, seq_len):
-                    input_pos.append(ref_samples[partner][j]) #fill partner as right hand sample
-                pos_label = [1, lh_genre, rh_genre] #the labels for training, the 1 means same genre
-                if heldout:
-                    val_samples.append(input_pos) #append to heldout validation set
-                    val_labels.append(pos_label)
-                else:
-                    training_samples.append(input_pos) #add this input to the final list of training inputs
-                    training_labels.append(pos_label) #add corresponding positive label vector
+                        training_samples.append(input_pos) #add this input to the final list of training inputs
+                        training_labels.append(pos_label) #add corresponding positive label vector
 
-                # create negative training sample, so get a different genre
-                rh_genre = lh_genre #initial condition for the loop
-                while rh_genre == lh_genre: #until we get a different one
-                    rh_genre = random.choice(allowed_genres) #get a genre label
-                for j in range(0, seq_len):
-                    input_neg.append(ref_samples[i][j]) # fill left hand sample
-                input_neg.append(SEP) #add separator token
+                    # create negative training sample, so get a different genre
+                    rh_genre = lh_genre #initial condition for the loop
+                    while rh_genre == lh_genre: #until we get a different one
+                        rh_genre = random.choice(allowed_genres) #get a genre label
+                        random_numbers.append(rh_genre)
+                    for j in range(0, seq_len):
+                        input_neg.append(ref_samples[i][j]) # fill left hand sample
+                    input_neg.append(SEP) #add separator token
 
-                partner = i #initial condition for loop
-                while partner==i: #find a new partner with a different genre
-                    partner = random.choice(sub_genre_sample_dict[dict_key][rh_genre]) #all other reference indices of this genre
-                    if partner in neg_partners: #did we put this on the right side of this left sample already?
-                        partner=i #if so, keep the loop going
-                    if heldout:  # if the left is heldout, the right needs to be heldout as well
-                        if not (this_holdout_start <= partner < this_holdout_stop):  # if partner is not also held out
-                            partner = i  # force partner to be from heldout samples if left sample is heldout
+                    partner = i #initial condition for loop
+                    while partner==i: #find a new partner with a different genre
+                        partner = random.choice(sub_genre_sample_dict[dict_key][rh_genre]) #all other reference indices of this genre
+                        random_numbers.append(partner)
+                        if partner in neg_partners: #did we put this on the right side of this left sample already?
+                            partner=i #if so, keep the loop going
+                        if heldout:  # if the left is heldout, the right needs to be heldout as well
+                            if not (this_holdout_start <= partner < this_holdout_stop):  # if partner is not also held out
+                                partner = i  # force partner to be from heldout samples if left sample is heldout
 
+                        else:
+                            neg_partners.append(partner) #otherwise put it in the list and we'll exit the loop
+                    for j in range(0, seq_len):
+                        input_neg.append(ref_samples[partner][j]) #fill partner as right hand sample
+                    neg_label = [0, lh_genre, rh_genre] #the labels for training, the 0 means different genre
+                    if heldout:
+                        val_samples.append(input_neg)
+                        val_labels.append(neg_label)
                     else:
-                        neg_partners.append(partner) #otherwise put it in the list and we'll exit the loop
-                for j in range(0, seq_len):
-                    input_neg.append(ref_samples[partner][j]) #fill partner as right hand sample
-                neg_label = [0, lh_genre, rh_genre] #the labels for training, the 0 means different genre
-                if heldout:
-                    val_samples.append(input_neg)
-                    val_labels.append(neg_label)
-                else:
-                    training_samples.append(input_neg) #add this input to the final list of training inputs
-                    training_labels.append(neg_label) #add corresponding negative label vector
+                        training_samples.append(input_neg) #add this input to the final list of training inputs
+                        training_labels.append(neg_label) #add corresponding negative label vector
 
-            # if(i==0 and verbose):
-            #     print("after i==0, training_samples has "+str(len(training_samples))+" samples, which should be "+str(2*num_copies)+ " and each sample has length "+str(len(training_samples[0]))+ " which each have length" +str(len(training_samples[0][0]))+".\n")
-            #     print("also, the label vectors are pos: "+str(pos_label)+" and neg: "+str(neg_label)+".\n\n")
+                # if(i==0 and verbose):
+                #     print("after i==0, training_samples has "+str(len(training_samples))+" samples, which should be "+str(2*num_copies)+ " and each sample has length "+str(len(training_samples[0]))+ " which each have length" +str(len(training_samples[0][0]))+".\n")
+                #     print("also, the label vectors are pos: "+str(pos_label)+" and neg: "+str(neg_label)+".\n\n")
+            elif(binary=="nextseq"):
+                input_pos=[CLS]
+                input_neg=[CLS]
+                #create positive sample, it IS the next sequence
+                for j in range(0, seq_len):
+                    input_pos.append(ref_samples[i][j])  # fill left hand sample
+                input_pos.append(SEP)
+                partner=i+1
+                # dont want partners across subjects
+                #  also covers the case where partner would go out of range
+                if(partner>sub_end):
+                    continue
+                for j in range(0, seq_len):
+                    input_pos.append(ref_samples[i+1][j])
+                rh_genre = ref_genres[i+1]
+                pos_label = [1, lh_genre, rh_genre]  # the labels for training, the 1 means same genre
+                # add sample and label to final product
+                training_samples.append(input_pos)
+                training_labels.append(pos_label)
+
+                #create negative sample
+                for j in range(0, seq_len):
+                    input_neg.append(ref_samples[i][j])  # fill left hand sample
+                input_neg.append(SEP)
+                partner=i
+                while(partner==i):
+                    partner=random.choice(range(sub_start,sub_end+1))
+                    #don't want it to be the next sample either
+                    if partner==(i+1):
+                        partner=i
+
+                # ok we got a partner that isn't itself or the next sequence
+                rh_genre=ref_genres[partner]
+                for j in range(0, seq_len):
+                    input_neg.append(ref_samples[partner][j])  # fill left hand sample
+                neg_label=[0, lh_genre, rh_genre]
+                training_samples.append(input_neg)
+                training_labels.append(neg_label)
 
 
         #now every element of reference_samples should have num_copies many positive and negative partners in training_samples
@@ -252,31 +300,34 @@ def make_ptdcrossval_data(threshold, hemisphere,  allowed_genres, seq_len=5, num
         #save training_samples and training_labels
         time = date.today()
         #this_dir = opengenre_preproc_path+"training_data/cross_val/"+str(time)+"/"
-        this_dir = opengenre_preproc_path+"training_data/seeded/"+str(time)+"/"
+        this_dir = opengenre_preproc_path+"training_data/"+str(time)+"/"
 
         if not os.path.exists(this_dir):
             os.mkdir(this_dir)
         count = 0
 
-        #set the last part of the filename by checking what already exists
-        this_file = this_dir+str(hemisphere)+"_seededtrainsamplesnew"+str(holdout)+".p"
+        # set the last part of the filename by checking what already exists
+        this_file = this_dir + str(hemisphere) + "_samples" + str(count) + ".p"
+        while os.path.exists(this_file):
+            count += 1
+            this_file = this_dir + str(hemisphere) + "_samples" + str(count) + ".p"
 
 
         #save training data and labels
         with open(this_file,"wb") as samples_fp:
             pickle.dump(training_samples,samples_fp)
-        with open(this_dir+str(hemisphere)+"_seededtrainlabelsnew"+str(holdout)+".p","wb") as labels_fp:
+        with open(this_dir+str(hemisphere)+"_labels"+str(count)+".p","wb") as labels_fp:
             pickle.dump(training_labels,labels_fp)
 
         #save the test data and labels
-        with open(this_dir+str(hemisphere)+"_valsamples"+str(holdout)+".p","wb") as valsamples_fp:
+        with open(this_dir+str(hemisphere)+"_valsamples"+str(count)+".p","wb") as valsamples_fp:
             pickle.dump(val_samples, valsamples_fp)
-        with open(this_dir+str(hemisphere)+"_vallabels"+str(holdout)+".p","wb") as vallabels_fp:
+        with open(this_dir+str(hemisphere)+"_vallabels"+str(count)+".p","wb") as vallabels_fp:
             pickle.dump(val_labels,vallabels_fp)
 
         #save metadata
-        with open(this_dir+str(hemisphere)+"_metadata"+str(holdout)+".txt","w") as meta_fp:
-            meta_fp.write("Creating training data with no runs held out and seeded RNG to compare to original code.\n"+
+        with open(this_dir+str(hemisphere)+"_metadata"+str(count)+".txt","w") as meta_fp:
+            meta_fp.write("First attempt at nexseq binary task data creation. Notably, slightly smaller dataset size than before because the positive pairs cant cross subject boundaries.\n"+
                     "\nnum_samples:"+str(len(training_samples))+
                     "\nallowed_genres:"+str(allowed_genres)+
                     "\nthreshold:"+str(threshold)+
@@ -288,7 +339,9 @@ def make_ptdcrossval_data(threshold, hemisphere,  allowed_genres, seq_len=5, num
                     "\nmulticlass:"+str(multiclass)+
                     "\ncount:"+str(count)+
                     "\nvoxel_dim:"+str(voxel_dim)+
-                    "\n")
+                    "\nrandom seed: "+str(seed)+
+                    "\nRandom numbers were: "+str(random_numbers)+
+                          "\n")
 
 if __name__=="__main__":
     #seq_len should be either 5 or 10

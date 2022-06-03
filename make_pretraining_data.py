@@ -20,7 +20,7 @@ import random
 #   the third is the length of each half of the sample either 5 or 10, num_copies is the number of positive and negative training samples to create from each left-hand reference sample, test_copies is the number of repetitions we want from the -test- runs, from 1 to 4. Recall that each test run is the same 10 clips repeated four times. Default is 1, i.e each set of 10 only once/only the first ten from each test run.
 #     The second to last two determine the CLS and MSK tasks that will be trained on.
 # the default allowed genres is all of them, 0 to 9 inclusive
-def make_pretraining_data(threshold, hemisphere,  allowed_genres, seq_len=5, num_copies=1, test_copies=1,standardize=1, detrend="linear", within_subjects=1, binary="same genre", multiclass="genre_decode", verbose=1, test_split=None):
+def make_pretraining_data(threshold, hemisphere,  allowed_genres, seq_len=5, num_copies=1, test_copies=1,standardize=1, detrend="linear", within_subjects=1, binary="nextseq", multiclass="genre_decode", verbose=1, test_split=None):
     #runs_dict is defined in Constants.py
     test_runs = runs_dict["Test"]
     training_runs = runs_dict["Training"]
@@ -152,6 +152,8 @@ def make_pretraining_data(threshold, hemisphere,  allowed_genres, seq_len=5, num
     # for each left-hand sample, create num_copies positive and negative training samples
     for i in range(0, len(ref_samples)):
         sub_id = (i//samples_per_subject) + 1 #e.g 1100//500 = 2, and subject 3 has range 1000 to 1499 if samplespersubject is 500
+
+
         sub_id = "00"+str(sub_id) # turn it into the familiar id string
         #print("sub_id is "+str(sub_id))
 
@@ -160,84 +162,89 @@ def make_pretraining_data(threshold, hemisphere,  allowed_genres, seq_len=5, num
         lh_genre = ref_genres[i] # genre of left-hand sample
         if lh_genre not in allowed_genres:
             continue #skip the rest of this iteration
-        if n_test != 0:
-            if i in test_idxs:
-                #make a new list for the test data, might be able to just use ref_samples[i] but being safe for now
-                # with a new list
-                test_left=[]
-                test_label = ref_genres[i]
-                test_genre_count[int(test_label)]+=1 # add one to the counter for that genre
-                for k in range(0, seq_len):
-                    test_left.append(ref_samples[i][k])
-                test_data_dict[sub_id].append(test_left)
-                test_label_dict[sub_id].append(test_label)
-                test_count+=1 # increment count of test leftsamples
-                #dont do the stuff below if this index was assigned to be test data
-                continue
-        for copy in range(0, num_copies):
-            input_pos = [CLS] #create positive sample, get a new address for each iteration
-            input_neg = [CLS] #create negative sample, get a new address for each iteration
+        if(binary=="same_genre"):
+            if n_test != 0:
+                if i in test_idxs:
+                    #make a new list for the test data, might be able to just use ref_samples[i] but being safe for now
+                    # with a new list
+                    test_left=[]
+                    test_label = ref_genres[i]
+                    test_genre_count[int(test_label)]+=1 # add one to the counter for that genre
+                    for k in range(0, seq_len):
+                        test_left.append(ref_samples[i][k])
+                    test_data_dict[sub_id].append(test_left)
+                    test_label_dict[sub_id].append(test_label)
+                    test_count+=1 # increment count of test leftsamples
+                    #dont do the stuff below if this index was assigned to be test data
+                    continue
+            for copy in range(0, num_copies):
+                input_pos = [CLS] #create positive sample, get a new address for each iteration
+                input_neg = [CLS] #create negative sample, get a new address for each iteration
 
-            # create positive training sample, so same genre
-            rh_genre = lh_genre
-            for j in range(0, seq_len):
-                input_pos.append(ref_samples[i][j]) # fill left hand sample
-            input_pos.append(SEP) #add separator token
-            partner = i #initial condition for loop
-            while partner==i: #find a new partner with the same genre
-                if (within_subjects): #if within_subjects flag is set
-                    dict_key=sub_id #only look at the samples from this subject with this genre
-                else: #pick one of the subjects at random to pair it with, including themself
-                    dict_key = randint(1,5)
-                    dict_key = "00"+str(dict_key)
+                # create positive training sample, so same genre
+                rh_genre = lh_genre
+                for j in range(0, seq_len):
+                    input_pos.append(ref_samples[i][j]) # fill left hand sample
+                input_pos.append(SEP) #add separator token
+                partner = i #initial condition for loop
+                while partner==i: #find a new partner with the same genre
+                    if (within_subjects): #if within_subjects flag is set
+                        dict_key=sub_id #only look at the samples from this subject with this genre
+                    else: #pick one of the subjects at random to pair it with, including themself
+                        dict_key = randint(1,5)
+                        dict_key = "00"+str(dict_key)
 
-                partner = random.choice(sub_genre_sample_dict[dict_key][lh_genre]) #all other reference indices of this genre for whichever subject was chosen
-                # this seems roundabout, but if within_subjects is not set this is functionally the same as picking one at random from a complete list, while also allowing mostly re-used code if within_subjects is set
-                #basically, i did it this way to allow the most overlap in code whether within_subjects is set or not
+                    partner = random.choice(sub_genre_sample_dict[dict_key][lh_genre]) #all other reference indices of this genre for whichever subject was chosen
+                    # this seems roundabout, but if within_subjects is not set this is functionally the same as picking one at random from a complete list, while also allowing mostly re-used code if within_subjects is set
+                    #basically, i did it this way to allow the most overlap in code whether within_subjects is set or not
 
-                if partner in pos_partners: #did we put this on the right side of this left sample already?
-                    partner=i #if so, keep the loop going
-                elif n_test != 0:
-                    if partner in test_idxs:
-                        partner=i #continue the loop if this index is assigned to test_data, we dont want
-                               # test data indices on the left OR right side of training samples
-                else:
-                    pos_partners.append(partner) #otherwise put it in the list and we'll exit the loop
-            for j in range(0, seq_len):
-                input_pos.append(ref_samples[partner][j]) #fill partner as right hand sample
-            pos_label = [1, lh_genre, rh_genre] #the labels for training, the 1 means same genre
-            training_samples.append(input_pos) #add this input to the final list of training inputs
-            training_labels.append(pos_label) #add corresponding positive label vector
+                    if partner in pos_partners: #did we put this on the right side of this left sample already?
+                        partner=i #if so, keep the loop going
+                    elif n_test != 0:
+                        if partner in test_idxs:
+                            partner=i #continue the loop if this index is assigned to test_data, we dont want
+                                   # test data indices on the left OR right side of training samples
+                    else:
+                        pos_partners.append(partner) #otherwise put it in the list and we'll exit the loop
+                for j in range(0, seq_len):
+                    input_pos.append(ref_samples[partner][j]) #fill partner as right hand sample
+                pos_label = [1, lh_genre, rh_genre] #the labels for training, the 1 means same genre
+                training_samples.append(input_pos) #add this input to the final list of training inputs
+                training_labels.append(pos_label) #add corresponding positive label vector
 
-            # create negative training sample, so get a different genre
-            rh_genre = lh_genre #initial condition for the loop
-            while rh_genre == lh_genre: #until we get a different one
-                rh_genre = random.choice(allowed_genres) #get a genre label
-            for j in range(0, seq_len):
-                input_neg.append(ref_samples[i][j]) # fill left hand sample
-            input_neg.append(SEP) #add separator token
+                # create negative training sample, so get a different genre
+                rh_genre = lh_genre #initial condition for the loop
+                while rh_genre == lh_genre: #until we get a different one
+                    rh_genre = random.choice(allowed_genres) #get a genre label
+                for j in range(0, seq_len):
+                    input_neg.append(ref_samples[i][j]) # fill left hand sample
+                input_neg.append(SEP) #add separator token
 
-            partner = i #initial condition for loop
-            while partner==i: #find a new partner with a different genre
-                partner = random.choice(sub_genre_sample_dict[dict_key][rh_genre]) #all other reference indices of this genre
-                if partner in neg_partners: #did we put this on the right side of this left sample already?
-                    partner=i #if so, keep the loop going
-                elif n_test != 0:
-                    if partner in test_idxs:
-                        partner=i # continue the loop if this index is assigned to test data, we dont want
-                               # test data indices on the left OR right side of training samples
-                else:
-                    neg_partners.append(partner) #otherwise put it in the list and we'll exit the loop
-            for j in range(0, seq_len):
-                input_neg.append(ref_samples[partner][j]) #fill partner as right hand sample
-            neg_label = [0, lh_genre, rh_genre] #the labels for training, the 1 means same genre
-            training_samples.append(input_neg) #add this input to the final list of training inputs
-            training_labels.append(neg_label) #add corresponding negative label vector
+                partner = i #initial condition for loop
+                while partner==i: #find a new partner with a different genre
+                    partner = random.choice(sub_genre_sample_dict[dict_key][rh_genre]) #all other reference indices of this genre
+                    if partner in neg_partners: #did we put this on the right side of this left sample already?
+                        partner=i #if so, keep the loop going
+                    elif n_test != 0:
+                        if partner in test_idxs:
+                            partner=i # continue the loop if this index is assigned to test data, we dont want
+                                   # test data indices on the left OR right side of training samples
+                    else:
+                        neg_partners.append(partner) #otherwise put it in the list and we'll exit the loop
+                for j in range(0, seq_len):
+                    input_neg.append(ref_samples[partner][j]) #fill partner as right hand sample
+                neg_label = [0, lh_genre, rh_genre] #the labels for training, the 1 means same genre
+                training_samples.append(input_neg) #add this input to the final list of training inputs
+                training_labels.append(neg_label) #add corresponding negative label vector
 
-        if(i==0 and verbose):
-            print("after i==0, training_samples has "+str(len(training_samples))+" samples, which should be "+str(2*num_copies)+ " and each sample has length "+str(len(training_samples[0]))+ " which each have length" +str(len(training_samples[0][0]))+".\n")
-            print("also, the label vectors are pos: "+str(pos_label)+" and neg: "+str(neg_label)+".\n\n")
+            if(i==0 and verbose):
+                print("after i==0, training_samples has "+str(len(training_samples))+" samples, which should be "+str(2*num_copies)+ " and each sample has length "+str(len(training_samples[0]))+ " which each have length" +str(len(training_samples[0][0]))+".\n")
+                print("also, the label vectors are pos: "+str(pos_label)+" and neg: "+str(neg_label)+".\n\n")
 
+        elif(binary=="nextseq"):
+            for copy in range(0, num_copies):
+                input_pos = [CLS] #create positive sample, get a new address for each iteration
+                input_neg = [CLS] #create negative sample, get a new address for each iteration
 
     #now every element of reference_samples should have num_copies many positive and negative partners in training_samples
     #  training_labels[i] is a vector of [{0,1}, lh_genre, rh_genre] for training_sample[i]

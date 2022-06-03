@@ -16,10 +16,6 @@ import datetime
 
 val_flag=0
 random.seed(5)
-#datachoice = "old"
-datachoice="new"
-#modelchoice="old"
-modelchoce="new"
 
 if __name__ == "__main__":
     with torch.autograd.set_detect_anomaly(True):
@@ -45,7 +41,9 @@ if __name__ == "__main__":
         #device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         #dictionary of hyperparameters, eventually should probably come from command line
         hp_dict={
+
             "task":"binaryonly",
+            "binary":"nextseq",
             "COOL_DIVIDEND" : COOL_DIVIDEND,
             "ATTENTION_HEADS" : ATTENTION_HEADS,
             "device" : str(device),
@@ -53,9 +51,9 @@ if __name__ == "__main__":
             "CLS_flag" : 1,
             "BATCH_SIZE" : 1,
             "EPOCHS" : EPOCHS,
-            "LEARNING_RATE" : 0.00005,
+            "LEARNING_RATE" : 0.0001,
             #Have to manually set the name of the folder whose training data you want to use, since there will be many
-            "data_dir" : "seeded/2022-05-19",
+            "data_dir" : "2022-06-02",
             #Manually set the hemisphere and iteration number of the dataset you want to use in that folder
             "hemisphere": "left",
             "count" : str(thiscount),
@@ -73,10 +71,10 @@ if __name__ == "__main__":
             logcount=thiscount
         else:
             logcount=0
-        logfile = today_dir + "seededpretrain_log_"+str(logcount)+".txt"
+        logfile = today_dir + "pretrainlog_"+str(logcount)+".txt"
         while (os.path.exists(logfile)):
             logcount+=1
-            logfile = today_dir + "pretrain_log_" + str(logcount) + ".txt"
+            logfile = today_dir + "pretrainlog_" + str(logcount) + ".txt"
         log = open(logfile,"w")
         log.write(str(now)+"\n")
         # run_desc is potentially given in command line call
@@ -88,9 +86,9 @@ if __name__ == "__main__":
             log.write(str(hp)+" : "+str(hp_dict[hp])+"\n")
 
         #load samples and labels
-        with open(hp_dict["data_path"] + hp_dict["hemisphere"] + "_seededtrainsamplesorig"+hp_dict["count"]+".p", "rb") as samples_fp:
+        with open(hp_dict["data_path"] + hp_dict["hemisphere"] + "_samples"+hp_dict["count"]+".p", "rb") as samples_fp:
             train_X = pickle.load(samples_fp)
-        with open(hp_dict["data_path"] + hp_dict["hemisphere"] + "_seededtrainlabelsorig"+hp_dict["count"]+".p", "rb") as labels_fp:
+        with open(hp_dict["data_path"] + hp_dict["hemisphere"] + "_labels"+hp_dict["count"]+".p", "rb") as labels_fp:
             train_Y = pickle.load(labels_fp)
 
         #load valsamples and vallabels
@@ -299,38 +297,6 @@ if __name__ == "__main__":
                         val_loss += loss.item()
                         val_acc += acc.item()
 
-            # training is done, load in the test data
-            #  recall that the mask tokens are already applied to this data for consistent results
-            # this_dir = hp_dict["data_path"] + hp_dict["hemisphere"] + "_"
-            # with open(this_dir + "testX" + hp_dict["count"] + ".p", "rb") as testX_fp:
-            #     test_X = pickle.load(testX_fp)
-            # with open(this_dir + "testY_bin" + hp_dict["count"] + ".p", "rb") as testY_bin_fp:
-            #     testY_bin = pickle.load(testY_bin_fp)
-            # with open(this_dir + "testY_multi" + hp_dict["count"] + ".p", "rb") as testY_multi_fp:
-            #     testY_multi = pickle.load(testY_multi_fp)
-            # with open(this_dir + "test_maskidxs" + hp_dict["count"] + ".p", "rb") as test_maskidxs_fp:
-            #     test_maskidxs = pickle.load(test_maskidxs_fp)
-            #
-            # with torch.no_grad():
-            #     model.eval()
-            #
-            #     ypred_bin, ypred_multi = model(test_X, test_maskidxs)
-            #     if hp_dict["task"] == "binaryonly":
-            #         test_loss = criterion_bin(ypred_bin, testY_bin)
-            #         acc = get_accuracy(ypred_bin, testY_bin, None)
-            #
-            #     elif hp_dict["task"] == "multionly":
-            #         test_loss = criterion_multi(ypred_multi, testY_multi)
-            #         acc = get_accuracy(ypred_multi, testY_multi, None)
-            #
-            #     else:
-            #         # when training both simultaneously, as per devlin et al
-            #         test_loss = criterion_bin(ypred_bin, testY_bin) + criterion_multi(ypred_multi, testY_multi)
-            #         test_loss = test_loss / 2
-            #
-            #     print("for test data, loss was " + str(test_loss) + " and accuracy was " + str(acc) + "\n")
-            #     log.write("for test data, loss was " + str(test_loss) + " and accuracy was " + str(acc) + "\n")
-
 
             print(f'Epoch {e+0:03}: | Loss: {epoch_loss/len(train_loader):.5f} | Acc: {epoch_acc/len(train_loader):.3f}')
 
@@ -342,40 +308,15 @@ if __name__ == "__main__":
             #print(f'Epoch {e+0:03}: | Loss: {epoch_loss/len(train_loader):.5f}')
             #log.write(f'Epoch {e+0:03}: | Loss: {epoch_loss/len(train_loader):.5f}')
 
+        modelcount=0
+        model_path = hp_dict["data_path"]+str(hp_dict["task"])+"_states_"+str(thiscount)+str(modelcount)+".pt"
+        while(os.path.exists(model_path)):
+            modelcount+=1
+            model_path = hp_dict["data_path"] + str(hp_dict["task"]) + "_states_" + str(thiscount) + str(
+                modelcount) + ".pt"
 
-        # training is done, load in the test data
-        #  recall that the mask tokens are already applied to this data for consistent results
-        # this_dir = hp_dict["data_path"]+hp_dict["hemisphere"]+"_"
-        # with open(this_dir+"testX"+hp_dict["count"]+".p", "rb") as testX_fp:
-        #     test_X = pickle.load(testX_fp)
-        # with open(this_dir+"testY_bin"+hp_dict["count"]+".p", "rb") as testY_bin_fp:
-        #     testY_bin = pickle.load(testY_bin_fp)
-        # with open(this_dir+"testY_multi"+hp_dict["count"]+".p", "rb") as testY_multi_fp:
-        #     testY_multi = pickle.load(testY_multi_fp)
-        # with open(this_dir+"test_maskidxs"+hp_dict["count"]+".p", "rb") as test_maskidxs_fp:
-        #     test_maskidxs = pickle.load(test_maskidxs_fp)
-        #
-        # with torch.no_grad():
-        #     model.eval()
-        #
-        #     ypred_bin, ypred_multi = model(test_X, test_maskidxs)
-        #     if hp_dict["task"]=="binaryonly":
-        #         test_loss = criterion_bin(ypred_bin, testY_bin)
-        #         acc = get_accuracy(ypred_bin, testY_bin, None)
-        #
-        #     elif hp_dict["task"]=="multionly":
-        #         test_loss = criterion_multi(ypred_multi, testY_multi)
-        #         acc = get_accuracy(ypred_multi, testY_multi, None)
-        #
-        #     else:
-        #         # when training both simultaneously, as per devlin et al
-        #         test_loss = criterion_bin(ypred_bin, testY_bin) + criterion_multi(ypred_multi, testY_multi)
-        #         test_loss = test_loss/2
-        #
-        #     print("for test data, loss was "+str(test_loss)+" and accuracy was "+str(acc)+"\n")
-        #     log.write("for test data, loss was "+str(test_loss)+" and accuracy was "+str(acc)+"\n")
-        # # save the weights of the model, not sure if this actually works
-        model_path = opengenre_preproc_path+"trained_models/"+hp_dict["task"]+"/seededorig_"+str(thiscount)+".pt"
         torch.save(model.state_dict(),model_path)
+        model_path = hp_dict["data_path"]+str(hp_dict["task"])+"_full_"+str(thiscount)+str(modelcount)+".pt"
+        torch.save(model,model_path)
 
     log.close()
