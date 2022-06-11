@@ -214,6 +214,8 @@ def mask_flatten_combine_opengenre(hemisphere, threshold, include_token_dims=1, 
 
 
 def get_accuracy(y_pred, y_true, log=None):
+    # print("y_pred has shape "+str(y_pred.shape))
+    # print("y_true has shape "+str(y_true.shape))
     prediction_idxs = torch.argmax(y_pred,dim=1)
     true_idxs = torch.argmax(y_true, dim=1)
 

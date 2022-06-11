@@ -12,6 +12,8 @@ from datetime import date
 from torch.utils.data import Dataset
 from helpers import standardize_flattened, detrend_flattened
 import random
+import copy as coppy
+
 seed=3
 random.seed(seed)
 random_numbers=[]
@@ -176,14 +178,14 @@ def make_ptdcrossval_data(threshold, hemisphere,  allowed_genres, seq_len=5, num
                 continue #skip the rest of this iteration
             if (binary == "same_genre"):
                 for copy in range(0, num_copies):
-                    input_pos = [CLS] #create positive sample, get a new address for each iteration
-                    input_neg = [CLS] #create negative sample, get a new address for each iteration
+                    input_pos = [coppy.deepcopy(CLS)] #create positive sample, get a new address for each iteration
+                    input_neg = [coppy.deepcopy(CLS)] #create negative sample, get a new address for each iteration
 
                     # create positive training sample, so same genre
                     rh_genre = lh_genre
                     for j in range(0, seq_len):
-                        input_pos.append(ref_samples[i][j]) # fill left hand sample
-                    input_pos.append(SEP) #add separator token
+                        input_pos.append(coppy.deepcopy(ref_samples[i][j])) # fill left hand sample
+                    input_pos.append(coppy.deepcopy(SEP)) #add separator token
                     partner = i #initial condition for loop
                     while partner==i: #find a new partner with the same genre
                         if (within_subjects): #if within_subjects flag is set
@@ -206,7 +208,7 @@ def make_ptdcrossval_data(threshold, hemisphere,  allowed_genres, seq_len=5, num
                         else:
                             pos_partners.append(partner) #otherwise put it in the list and we'll exit the loop
                     for j in range(0, seq_len):
-                        input_pos.append(ref_samples[partner][j]) #fill partner as right hand sample
+                        input_pos.append(coppy.deepcopy(ref_samples[partner][j])) #fill partner as right hand sample
                     pos_label = [1, lh_genre, rh_genre] #the labels for training, the 1 means same genre
                     if heldout:
                         val_samples.append(input_pos) #append to heldout validation set
@@ -221,8 +223,8 @@ def make_ptdcrossval_data(threshold, hemisphere,  allowed_genres, seq_len=5, num
                         rh_genre = random.choice(allowed_genres) #get a genre label
                         random_numbers.append(rh_genre)
                     for j in range(0, seq_len):
-                        input_neg.append(ref_samples[i][j]) # fill left hand sample
-                    input_neg.append(SEP) #add separator token
+                        input_neg.append(coppy.deepcopy(ref_samples[i][j])) # fill left hand sample
+                    input_neg.append(coppy.deepcopy(SEP)) #add separator token
 
                     partner = i #initial condition for loop
                     while partner==i: #find a new partner with a different genre
@@ -237,7 +239,7 @@ def make_ptdcrossval_data(threshold, hemisphere,  allowed_genres, seq_len=5, num
                         else:
                             neg_partners.append(partner) #otherwise put it in the list and we'll exit the loop
                     for j in range(0, seq_len):
-                        input_neg.append(ref_samples[partner][j]) #fill partner as right hand sample
+                        input_neg.append(coppy.deepcopy(ref_samples[partner][j])) #fill partner as right hand sample
                     neg_label = [0, lh_genre, rh_genre] #the labels for training, the 0 means different genre
                     if heldout:
                         val_samples.append(input_neg)
@@ -250,19 +252,19 @@ def make_ptdcrossval_data(threshold, hemisphere,  allowed_genres, seq_len=5, num
                 #     print("after i==0, training_samples has "+str(len(training_samples))+" samples, which should be "+str(2*num_copies)+ " and each sample has length "+str(len(training_samples[0]))+ " which each have length" +str(len(training_samples[0][0]))+".\n")
                 #     print("also, the label vectors are pos: "+str(pos_label)+" and neg: "+str(neg_label)+".\n\n")
             elif(binary=="nextseq"):
-                input_pos=[CLS]
-                input_neg=[CLS]
+                input_pos=[coppy.deepcopy(CLS)]
+                input_neg=[coppy.deepcopy(CLS)]
                 #create positive sample, it IS the next sequence
                 for j in range(0, seq_len):
-                    input_pos.append(ref_samples[i][j])  # fill left hand sample
-                input_pos.append(SEP)
+                    input_pos.append(coppy.deepcopy(ref_samples[i][j]))  # fill left hand sample
+                input_pos.append(coppy.deepcopy(SEP))
                 partner=i+1
                 # dont want partners across subjects
                 #  also covers the case where partner would go out of range
                 if(partner>sub_end):
                     continue
                 for j in range(0, seq_len):
-                    input_pos.append(ref_samples[i+1][j])
+                    input_pos.append(coppy.deepcopy(ref_samples[i+1][j]))
                 rh_genre = ref_genres[i+1]
                 pos_label = [1, lh_genre, rh_genre]  # the labels for training, the 1 means same genre
                 # add sample and label to final product
@@ -271,8 +273,8 @@ def make_ptdcrossval_data(threshold, hemisphere,  allowed_genres, seq_len=5, num
 
                 #create negative sample
                 for j in range(0, seq_len):
-                    input_neg.append(ref_samples[i][j])  # fill left hand sample
-                input_neg.append(SEP)
+                    input_neg.append(coppy.deepcopy(ref_samples[i][j]))  # fill left hand sample
+                input_neg.append(coppy.deepcopy(SEP))
                 partner=i
                 while(partner==i):
                     partner=random.choice(range(sub_start,sub_end+1))
@@ -283,7 +285,7 @@ def make_ptdcrossval_data(threshold, hemisphere,  allowed_genres, seq_len=5, num
                 # ok we got a partner that isn't itself or the next sequence
                 rh_genre=ref_genres[partner]
                 for j in range(0, seq_len):
-                    input_neg.append(ref_samples[partner][j])  # fill left hand sample
+                    input_neg.append(coppy.deepcopy(ref_samples[partner][j]))  # fill left hand sample
                 neg_label=[0, lh_genre, rh_genre]
                 training_samples.append(input_neg)
                 training_labels.append(neg_label)

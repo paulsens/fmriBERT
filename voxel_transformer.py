@@ -211,7 +211,7 @@ class Transformer(nn.Module):
             dropout=0.1,
             #device="cuda",
             device="cpu",
-            max_length=8
+            max_length=None
     ):
         super(Transformer, self).__init__()
 
