@@ -211,7 +211,9 @@ class Transformer(nn.Module):
             dropout=0.1,
             #device="cuda",
             device="cpu",
-            max_length=None
+            max_length=None,
+            ref_samples=None,
+            mask_task=None
     ):
         super(Transformer, self).__init__()
 
@@ -244,10 +246,17 @@ class Transformer(nn.Module):
             #nn.ReLU()
 
         )
-        self.output_layer_multi =  nn.Sequential(
+        self.output_layer_genredecoding =  nn.Sequential(
             nn.Linear(voxel_dim, voxel_dim // 2),
+            #nn.ReLU(),
             nn.Linear(voxel_dim//2, num_genres),
             nn.Softmax(dim=1)
+        )
+        self.output_layer_reconstruction =  nn.Sequential(
+            nn.Linear(voxel_dim, voxel_dim),
+            nn.ReLU(),
+            nn.Linear(voxel_dim, voxel_dim),
+            nn.ReLU()
         )
 
         self.src_pad_sequence = src_pad_sequence
@@ -298,18 +307,25 @@ class Transformer(nn.Module):
         #make a list of the final states of the MSK tokens
         #the mask_indices list tells us where to find them
         for i in range(0, BATCHSIZE):
-            temp = enc_src[i][mask_indices[i]][:]
-            voxel_dim = len(temp)
-            #print("in Transformer's forward, temp is "+str(temp)+" and batcmsktokens is "+str(batch_MSK_tokens))
-            batch_MSK_tokens.append(temp)
+            sample_mask_idxs=mask_indices[i] #a list of either two or one idxs, depending whether mask variation was true
+            sample_mask_tokens=[]
+            for mask_idx in sample_mask_idxs:
+                if(mask_idx==-1):
+                    continue
+                temp = enc_src[i][mask_idx][:]
+            #print("in Transformer's forward, temp is "+str(temp)+" and batchmsktokens is "+str(batch_MSK_tokens))
+                batch_MSK_tokens.append(temp)
+
         batch_MSK_tokens = torch.stack(batch_MSK_tokens) #create pytorch tensor of the tensors in the list
 
         #print("batch MSK tokens has shape "+str(batch_MSK_tokens.shape))  #should be batchsize by voxel_dim
 
 
         out_bin=self.output_layer_bin(batch_CLS_tokens)
-        out_multi=self.output_layer_multi(batch_MSK_tokens)
-
+        if(self.mask_task=="genre_decoding"):
+            out_multi=self.output_layer_genredecoding(batch_MSK_tokens)
+        elif(self.mask_task=="reconstruction"):
+            out_multi=self.output_layer_reconstruction(batch_MSK_tokens)
         return out_bin, out_multi
 
 def get_mask_idx(sequence, src_pad_sequence): #n-by-voxel_dim sequence of voxel data

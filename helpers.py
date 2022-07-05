@@ -7,6 +7,7 @@ import os
 import pickle
 import pandas as pd
 from Constants import *
+import random
 from random import randint
 from datetime import datetime
 from torch.utils.data import Dataset, DataLoader, Subset
@@ -132,11 +133,20 @@ def stack_opengenre_labels(verbose=1):
 #hemisphere is either "left" or "right"
 #include token dims tells us whether to insert 3 extra dimensions at the front of the lists to be used by pretraining tokens
 #  i.e if you are going to be pretraining with fmribert, this should be set to True.
-def mask_flatten_combine_opengenre(hemisphere, threshold, include_token_dims=1, verbose=1):
+def mask_flatten_combine_opengenre(hemisphere, threshold, set="opengenre", include_token_dims=1, verbose=1):
     # Loop through subjects
-    for sub in ["001", "002", "003", "004", "005"]:
+    sublist=None
+    if(set=="pitchclass"):
+        sublist= ["1088", "1125", "1401", "1410", "1419", "1427", "1541", "1571", "1581", "1660", "1661", "1664", "1665",
+               "1668", "1672", "1678", "1680"]
+    elif(set=="opengenre"):
+        sublist=["001", "002", "003", "004", "005"]
+    for sub in sublist:
+        if(set=="pitchclass"):
+            sub="00"+sub
         #opengenre_preproc_path is defined in Constants.py
-        subdir = opengenre_preproc_path + "sub-sid" + sub + "/" + "sub-sid" + sub + "/"
+        #subdir = opengenre_preproc_path + "sub-sid" + sub + "/" + "sub-sid" + sub + "/"
+        subdir = opengenre_preproc_path + "sub-sid" + sub + "/" + "sub-sid00" + sub + "/"
 
         #load binary mask
         mask_fp = open(subdir + "STG_masks/STGbinary_"+hemisphere+"_t"+threshold+".p","rb")
@@ -167,6 +177,7 @@ def mask_flatten_combine_opengenre(hemisphere, threshold, include_token_dims=1, 
         #list for combinining all runs
         masked_data = []
         #loop over both tasks
+        runs_dict=runs_dicts[set]
         for task in runs_dict.keys(): #runs_dict is located in Constants.py
             max_run = runs_dict[task]
 
@@ -178,9 +189,14 @@ def mask_flatten_combine_opengenre(hemisphere, threshold, include_token_dims=1, 
                     runstr = str(run)
 
                 # Load the (65,77,65,T) preprocessed bold data
-                filedir = opengenre_preproc_path + "sub-sid" + sub + "/" + "sub-sid" + sub +\
+                if(set=="opengenre"):
+                    filedir = opengenre_preproc_path + "sub-sid" + sub + "/" + "sub-sid" + sub +\
                           "/dt-neuro-func-task.tag-"+task+".tag-preprocessed.run-"+runstr+".id/"
-                filepath = filedir+"bold_resampled.nii.gz"
+                    filepath = filedir+"bold_resampled.nii.gz" #opengenre had to be resampled down to correct space
+                else:
+                    filedir = pitchclass_preproc_path + "sub-sid" + sub + "/" + "sub-sid" + sub +\
+                          "/dt-neuro-func-task.tag-"+task+".tag-preprocessed.run-"+runstr+".id/"
+                    filepath = filedir+"bold.nii" #pitchclass data is already in MNI152Lin2009, didn't need to be resampled
                 bold_img = nib.load(filepath)
                 bold_data = bold_img.get_fdata()
 
@@ -308,7 +324,128 @@ def detrend_flattened(voxel_data, detrend="linear"):
 
     # detrending should be done
     return detrend_data.tolist()
+def train_val_dataset(dataset, val_split=0.1):
+    train_idx, val_idx = train_test_split(list(range(len(dataset))), test_size=val_split)
+    datasets = {}
+    datasets["train"] = Subset(dataset, train_idx)
+    datasets["val"] = Subset(dataset, val_idx)
+    return datasets
 
+def apply_masks(x, y, ref_samples, hp_dict, mask_variation, ytrue_multi_batch, sample_dists, ytrue_dist_multi1, ytrue_dist_multi2, batch_mask_indices, sample_mask_indices, log, heldout=False):
+
+    if (mask_variation):
+        # TRAINING samples per subject
+        held_idx = hp_dict["heldout_run"]
+        first=True
+        idx_range = [1, 2, 3, 4, 5, 7, 8, 9, 10, 11]
+        # retrieve smuggled information and reset to correct CLS values in those dimensions
+        sub_id_int = x[0][0]
+        # where is this leftsample in ref_samples
+        ref_idx_left = x[0][1]
+        # where is this rightsample in ref_samples
+        ref_idx_right = x[0][2]
+        # bounds of ref_samples for this subject
+        ref_sps = len(ref_samples) // hp_dict["num_subjects"]
+        ref_sub_start = ref_sps * (sub_id_int - 1)
+        ref_sub_end = ref_sub_start + 1080
+        # where does the heldout run start and end in this subject's segment
+        if(held_idx is not None):
+            ref_held_start = ref_sub_start + 120 + 80 * (held_idx)
+            ref_held_end = ref_held_start + 80
+        else:
+            ref_held_start = None
+            ref_held_end = None
+        x[0][0] = 1
+        x[0][1] = 0
+        x[0][2] = 0
+
+        flip = random.randint(1, 100)
+        if (flip <= 50):
+            k = 1
+        else:
+            k = 2
+        idxs = random.sample(idx_range, k)
+        for idx in idxs: #the things we're replacing, either one or two (k)
+            sample_mask_indices.append(idx)
+            if idx<6: #if it's in the left sample
+                ref_idx=ref_idx_left
+            else:
+                ref_idx=ref_idx_right
+            r_action=random.randint(1,100)
+            #if r_action<=10 do nothing
+            if 10<r_action<=20: #replace with another TR from the same subject, but not next to it in refsamples
+                r_choice=ref_idx
+                while r_choice==ref_idx:
+                    if(heldout): # select a replacement from this subject's heldout run
+                        r_choice=random.randint(ref_held_start, ref_held_end-1)
+                    else:
+                        r_choice=random.randint(ref_sub_start, ref_sub_end-1)
+                        if ref_held_start<=r_choice<ref_held_end: #if we chose something in the heldout run
+                            r_choice=ref_idx #repeat the loop
+                    #this applies to heldout and not heldout, dont want neighbors
+                    if (r_choice==ref_idx+1) or (r_choice==ref_idx-1): #if it's a neighbor in time
+                        r_choice=ref_idx #repeat the loop
+                #if we got this far, we got a valid replacement index
+                # now just pick which element of that sequence to grab
+                r_slot=random.randint(0,len(ref_samples[0])-1)
+                for i in range(0, len(x[0])): #equivalently, range(0, voxel_dim)
+                    # log.write("idx: "+str(idx)+"\n"+
+                    #           "i: "+str(i)+"\n"+
+                    #           "r_choice: "+str(r_choice)+"\n"+
+                    #           "r_slot: "+str(r_slot)+"\n"+
+                    #           "len(x): "+str(len(x))+"\n"+
+                    #           "len(x[idx]): "+str(len(x[idx]))+"\n")
+                    # log.write("len(ref_samples): "+str(len(ref_samples))+"\n")
+                    # log.write("len(ref_samples[r_choice]): "+str(len(ref_samples[r_choice]))+"\n")
+                    # log.write( "len(ref_samples[r_choice][r_slot]: "+str(len(ref_samples[r_choice][r_slot])))
+                    x[idx][i]=ref_samples[r_choice][r_slot][i] #copy in the replacement TR
+            elif r_action>20: #just make it a MSK token, which has 1 in dimension 1
+                for i in range(0, len(x[0])):
+                    x[idx][i]=0 #zero it out
+                x[idx][1]=1
+            #masking/replacing is done for this idx, now add label information to samples_dists
+            if(idx>6):
+                ytrue_multi_idx=y[2]
+            else:
+                ytrue_multi_idx=y[1] #genre labels for left/right sample
+            if first:
+                ytrue_dist_multi1[ytrue_multi_idx]=1 #put mass on that genre label
+                first=False
+                #sample_dists.append(ytrue_dist_multi1.tolist())
+                ytrue_multi_batch.append(ytrue_dist_multi1.tolist())
+            else:
+                ytrue_dist_multi2[ytrue_multi_idx]=1 #if this is the second replacement/mask use the second distribution
+                #sample_dists.append(ytrue_dist_multi2.tolist())
+                ytrue_multi_batch.append(ytrue_dist_multi2.tolist())
+
+        #end of for (idx in idxs)
+        if(k==1):
+            # these two lists  need to have length two even if only one replacement is done, for consistent dimensions
+            sample_mask_indices.append(-1)
+            #sample_dists.append([-1,0,0,0,0,0,0,0,0,0])
+        #add label information for this sample to batch list
+        #ytrue_multi_batch.append(sample_dists)
+
+    else:
+        mask_choice = randint(1, 10)  # pick a token to mask
+        if (mask_choice >= 6):
+            mask_choice += 1  # dont want to mask the SEP token at index 6, so 6-10 becomes 7-11
+            # each element in the batch has 3 values, same_genre boolean, first half genre, second half genre
+            # so if we're masking an element of the second half, the genre decoding label should be that half's genre
+            ytrue_multi_idx = y[2]
+        else:
+            ytrue_multi_idx = y[1]
+        ytrue_dist_multi1[ytrue_multi_idx] = 1  # set all the probability mass on the true index
+        #sample_dists.append(ytrue_dist_multi1.tolist())
+        #ytrue_multi_batch.append(sample_dists)
+        ytrue_multi_batch.append(ytrue_dist_multi1)
+        for i in range(0, len(x[0])):
+            x[mask_choice][i] = 0  # zero it out
+        x[mask_choice][1]=1
+        #x[mask_choice] = torch.clone(MSK)
+        sample_mask_indices.append(mask_choice)
+    #add mask indices for this one sample to batch list
+    batch_mask_indices.append(sample_mask_indices)
 
 
 
@@ -327,9 +464,3 @@ if __name__=="__main__":
     #make_pretraining_data("23", "left")
     print("none")
 
-def train_val_dataset(dataset, val_split=0.1):
-    train_idx, val_idx = train_test_split(list(range(len(dataset))), test_size=val_split)
-    datasets = {}
-    datasets["train"] = Subset(dataset, train_idx)
-    datasets["val"] = Subset(dataset, val_idx)
-    return datasets

@@ -119,7 +119,8 @@ def get_half_string(i, samples, idx_range, i_choice, r_choice, i_floor, i_ceilin
     return the_str
 
 # note that this is making the list of left-samples, so seq_len is only one half without CLS or SEP
-def make_gaussian_data(n_samples, voxel_dim, seq_len, seed, mean, sdev):
+def make_gaussian_data(n_samples, voxel_dim, seq_len, seed, means, sdev):
+    samples_per_mean=n_samples//len(means)
     random.seed(seed)
     TIMESTEPS = n_samples
     mydataset = []
@@ -133,6 +134,7 @@ def make_gaussian_data(n_samples, voxel_dim, seq_len, seed, mean, sdev):
             for k in range(3, voxel_dim):
                 temp[j][k] = sample[j][k - 3]
         mydataset.append(temp.tolist())
+    return mydataset
 
 def make_opengenre_data():
     return None
@@ -161,16 +163,16 @@ def write_file(data, file_str, path_str):
 # write_metadata(vars_dict, file_str, vars_dict["canary_path"])
 
 # MAKE A CANARY OF GAUSSIAN DATA
-vars_dict= {"samples":10800,
+vars_dict= {"samples":5400,
             "epochs":1,
             "seq_length":5,
             "seed":3,
-            "mean":6,
+            "means":[0,1, 2, 3, 4, 5, 6, 7, 8, 9],
             "sdev":1,
             "voxel_dim":420,
             "canary_path":"/Volumes/External/opengenre/preproc/canaries/",
 }
-gdata=make_gaussian_data(vars_dict["samples"], vars_dict["voxel_dim"], vars_dict["seq_length"], vars_dict["seed"], vars_dict["mean"], vars_dict["sdev"])
+gdata=make_gaussian_data(vars_dict["samples"], vars_dict["voxel_dim"], vars_dict["seq_length"], vars_dict["seed"], vars_dict["means"], vars_dict["sdev"])
 file_str="gaussian_data_1"
 write_file(gdata,file_str, vars_dict["canary_path"])
 write_metadata(vars_dict, file_str, vars_dict["canary_path"])

@@ -151,10 +151,10 @@ def make_pretraining_data(threshold, hemisphere,  allowed_genres, seq_len=5, num
 
     # for each left-hand sample, create num_copies positive and negative training samples
     for i in range(0, len(ref_samples)):
-        sub_id = (i//samples_per_subject) + 1 #e.g 1100//500 = 2, and subject 3 has range 1000 to 1499 if samplespersubject is 500
+        sub_id_int = (i//samples_per_subject) + 1 #e.g 1100//500 = 2, and subject 3 has range 1000 to 1499 if samplespersubject is 500
 
 
-        sub_id = "00"+str(sub_id) # turn it into the familiar id string
+        sub_id = "00"+str(sub_id_int) # turn it into the familiar id string
         #print("sub_id is "+str(sub_id))
 
         pos_partners = [] # the reference indices with same genre that have already been paired on the right hand side

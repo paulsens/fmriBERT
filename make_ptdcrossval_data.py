@@ -14,15 +14,14 @@ from helpers import standardize_flattened, detrend_flattened
 import random
 import copy as coppy
 
-seed=3
-random.seed(seed)
+
 random_numbers=[]
 # make the pretraining datasets according to several parameters
 #  the first is the probability threshold for inclusion in STG as a string, e.g "23", the second is "left" or "right"
 #   the third is the length of each half of the sample either 5 or 10, num_copies is the number of positive and negative training samples to create from each left-hand reference sample, test_copies is the number of repetitions we want from the -test- runs, from 1 to 4. Recall that each test run is the same 10 clips repeated four times. Default is 1, i.e each set of 10 only once/only the first ten from each test run.
 #     The second to last two determine the CLS and MSK tasks that will be trained on.
 # the default allowed genres is all of them, 0 to 9 inclusive
-def make_ptdcrossval_data(threshold, hemisphere,  allowed_genres, seq_len=5, num_copies=1, test_copies=1, val_copies=1, standardize=1, detrend="linear", within_subjects=1, binary="nextseq", multiclass="genre_decode", verbose=1):
+def make_ptdcrossval_data(threshold, hemisphere,  allowed_genres, seq_len=5, num_copies=1, test_copies=1, val_copies=1, standardize=1, detrend="linear", within_subjects=1, binary="nextseq", mask_task="genre_decode", seed=3, val_flag=0, verbose=1):
     #runs_dict is defined in Constants.py
     test_runs = runs_dict["Test"]
     training_runs = runs_dict["Training"]
@@ -34,11 +33,16 @@ def make_ptdcrossval_data(threshold, hemisphere,  allowed_genres, seq_len=5, num
     MSK = [0, 1] + ([0] * (voxel_dim - 2))  # second dimension is reserved for msk_token flag
     SEP = [0, 0, 1] + ([0] * (voxel_dim - 3))  # third dimension is reserved for sep_token flag
 
+    if val_flag:
+        holdout_range=range(0,12)
+    else:
+        holdout_range=range(0,1)
 
-    #for holdout in range(0,12):
-    for holdout in range(0, 1): #for testing purposes, real datasets should use previous for-condition
+
+    for holdout in holdout_range:
+        random.seed(seed) #seed is passed in as a parameter, defaults to 3
         #loop through subjects
-        # each element of this list should be (seq_len*2 + 2,real_voxel_dim+3), i.e CLS+n TRs+SEP+n TRs
+        # each element of this list should ultimately be (seq_len*2 + 2,real_voxel_dim+3), i.e CLS+n TRs+SEP+n TRs
         #   where 3 extra dimensions have been added to the front of the voxel space for the tokens
         training_samples = []
         # final list of labels for training
@@ -140,7 +144,7 @@ def make_ptdcrossval_data(threshold, hemisphere,  allowed_genres, seq_len=5, num
                 iter = iter+1
             #this subject's genre_sample_dict is done, save it in the parent dictionary with sub as key
             sub_genre_sample_dict[sub]=genre_sample_dict
-
+            print("after subject "+str(sub)+", ref samples has length "+str(len(ref_samples)))
 
         #iter counts how many left samples we make per subject, should be the same for each
         # so after all the subjects are done this value should linger from the final subject's for-loop
@@ -155,20 +159,20 @@ def make_ptdcrossval_data(threshold, hemisphere,  allowed_genres, seq_len=5, num
         # for each left-hand sample, create num_copies positive and negative training samples
         for i in range(0, len(ref_samples)):
 
-            sub_id = (i//samples_per_subject) + 1 #e.g 1100//500 = 2, and subject 3 has range 1000 to 1499 if samplespersubject is 500
-            sub_start = (sub_id - 1) * samples_per_subject
+            sub_id_int = (i//samples_per_subject) + 1 #e.g 1100//500 = 2, and subject 3 has range 1000 to 1499 if samplespersubject is 500
+            sub_start = (sub_id_int - 1) * samples_per_subject
             sub_end = sub_start + samples_per_subject - 1 #the last index that is included for that subject
             if (verbose and i % 1000 == 0):
                 print("Sub start is {start}, and sub end is {end}".format(start=str(sub_start), end=str(sub_end)))
-            startstop_list = sub_startstop_list[sub_id-1] #get holdout indices
+            startstop_list = sub_startstop_list[sub_id_int-1] #get holdout indices
             this_holdout_start=startstop_list[0]
             this_holdout_stop = startstop_list[1]
             if i < this_holdout_stop and i >= this_holdout_start:
-                #heldout = True
-                heldout = False #for testing purposes to not hold stuff out
+                heldout = True
+                #heldout = False #for testing purposes to not hold stuff out
             else:
                 heldout = False
-            sub_id = "00"+str(sub_id) # turn it into the familiar id string
+            sub_id = "00"+str(sub_id_int) # turn it into the familiar id string
             #print("sub_id is "+str(sub_id))
 
             pos_partners = [] # the reference indices with same genre that have already been paired on the right hand side
@@ -268,8 +272,19 @@ def make_ptdcrossval_data(threshold, hemisphere,  allowed_genres, seq_len=5, num
                 rh_genre = ref_genres[i+1]
                 pos_label = [1, lh_genre, rh_genre]  # the labels for training, the 1 means same genre
                 # add sample and label to final product
-                training_samples.append(input_pos)
-                training_labels.append(pos_label)
+
+                #smuggle relevant information inside the first two dimensions of the CLS token
+                # at training time, because the data is shuffled, we'll have no way of knowing where in ref_samples this thing came from, hence the smuggling. we'll set these back to 1 and 0 respectively before giving it to the model.
+                input_pos[0][0]=sub_id_int
+                input_pos[0][1]=i
+                input_pos[0][2]=partner
+
+                if heldout:
+                    val_samples.append(input_pos)  # append to heldout validation set
+                    val_labels.append(pos_label)
+                else:
+                    training_samples.append(input_pos)
+                    training_labels.append(pos_label)
 
                 #create negative sample
                 for j in range(0, seq_len):
@@ -278,8 +293,8 @@ def make_ptdcrossval_data(threshold, hemisphere,  allowed_genres, seq_len=5, num
                 partner=i
                 while(partner==i):
                     partner=random.choice(range(sub_start,sub_end+1))
-                    #don't want it to be the next sample either
-                    if partner==(i+1):
+                    #don't want it to be the next sample or the previous sample to avoid confounding
+                    if partner==(i+1) or partner==(i-1):
                         partner=i
 
                 # ok we got a partner that isn't itself or the next sequence
@@ -287,8 +302,18 @@ def make_ptdcrossval_data(threshold, hemisphere,  allowed_genres, seq_len=5, num
                 for j in range(0, seq_len):
                     input_neg.append(coppy.deepcopy(ref_samples[partner][j]))  # fill left hand sample
                 neg_label=[0, lh_genre, rh_genre]
-                training_samples.append(input_neg)
-                training_labels.append(neg_label)
+                #smuggle relevant information inside the first two dimensions of the CLS token
+                # at training time, because the data is shuffled, we'll have no way of knowing where in ref_samples this thing came from, hence the smuggling. we'll set these back to 1, 0, and 0 respectively before giving it to the model.
+                input_neg[0][0]=sub_id_int
+                input_neg[0][1]=i
+                input_neg[0][2]=partner
+
+                if heldout:
+                    val_samples.append(input_neg)  # append to heldout validation set
+                    val_labels.append(neg_label)
+                else:
+                    training_samples.append(input_neg)
+                    training_labels.append(neg_label)
 
 
         #now every element of reference_samples should have num_copies many positive and negative partners in training_samples
@@ -296,7 +321,7 @@ def make_ptdcrossval_data(threshold, hemisphere,  allowed_genres, seq_len=5, num
 
         if(verbose):
             print("Training_samples has length "+str(len(training_samples))+", and each element has length "+str(len(training_samples[0]))+". Each of those has length "+str(len(training_samples[0][0]))+".\n\n")
-            #print("Val_samples has length "+str(len(val_samples))+", and each element has length "+str(len(val_samples[0]))+". Each of those has length "+str(len(val_samples[0][0]))+".\n\n")
+            print("Val_samples has length "+str(len(val_samples))+", and each element has length "+str(len(val_samples[0]))+". Each of those has length "+str(len(val_samples[0][0]))+".\n\n")
             #print("Val labels has length" +str(len(val_labels)))
 
         #save training_samples and training_labels
@@ -306,8 +331,12 @@ def make_ptdcrossval_data(threshold, hemisphere,  allowed_genres, seq_len=5, num
 
         if not os.path.exists(this_dir):
             os.mkdir(this_dir)
-        count = 0
 
+
+        # save the refsamples list, this should be the same every time so no need to keep track with a count in the filename
+        with open(this_dir+str(hemisphere)+"_refsamples.p","wb") as refsamples_fp:
+            pickle.dump(ref_samples, refsamples_fp)
+        count = 0
         # set the last part of the filename by checking what already exists
         this_file = this_dir + str(hemisphere) + "_samples" + str(count) + ".p"
         while os.path.exists(this_file):
@@ -329,7 +358,7 @@ def make_ptdcrossval_data(threshold, hemisphere,  allowed_genres, seq_len=5, num
 
         #save metadata
         with open(this_dir+str(hemisphere)+"_metadata"+str(count)+".txt","w") as meta_fp:
-            meta_fp.write("First attempt at nexseq binary task data creation. Notably, slightly smaller dataset size than before because the positive pairs cant cross subject boundaries.\n"+
+            meta_fp.write("Making nextseq binary task data with the 12 heldout run crossval scheme. Seeding rng with seed=3 at the beginning of each of the 12 iterations. Also the first dataset filled with deepcopies of lists instead of repeated referenes. That shouldn't affect anything, but who knows.\n"+
                     "\nnum_samples:"+str(len(training_samples))+
                     "\nallowed_genres:"+str(allowed_genres)+
                     "\nthreshold:"+str(threshold)+
@@ -338,7 +367,7 @@ def make_ptdcrossval_data(threshold, hemisphere,  allowed_genres, seq_len=5, num
                     "\nnum_copies:"+str(num_copies)+
                     "\ntest_copies:"+str(test_copies)+
                     "\nbinary:"+str(binary)+
-                    "\nmulticlass:"+str(multiclass)+
+                    "\nmask_task:"+str(mask_task)+
                     "\ncount:"+str(count)+
                     "\nvoxel_dim:"+str(voxel_dim)+
                     "\nrandom seed: "+str(seed)+
@@ -352,4 +381,4 @@ if __name__=="__main__":
     #num_copies is the number of positive and negative training samples to create from each left-hand sample
     #allowed_genres is a list of what it sounds like, remember range doesn't include right boundary
     # val_copies is the data augmentation factor for the held out run. That run will have ~1/10 the data of the full run, so it probably needs some augmentation
-    make_ptdcrossval_data("23", hemisphere="left", seq_len=5, num_copies=1, standardize=1, detrend="linear", within_subjects=1, allowed_genres=range(0,10))
+    make_ptdcrossval_data("23", hemisphere="left", seq_len=5, num_copies=1, standardize=1, detrend="linear", mask_task="reconstruct", within_subjects=1, allowed_genres=range(0,10), val_flag=1)

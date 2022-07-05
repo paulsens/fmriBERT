@@ -1,4 +1,4 @@
-env = "local"
+env = "discovery"
 if env == "local":
     proj_dir = "/Users/sean/Desktop/current_research/fmriBERTfix/fmriBERT/"
 elif env =="discovery":
@@ -22,6 +22,9 @@ genrelabel_dict = {
 
 #number of runs for each task in the opengenre dataset
 runs_dict = {"Test": 6, "Training": 12}
+runs_dict2 = {"Training":8}
+runs_dicts = {"opengenre":runs_dict, "pitchclass":runs_dict2}
+
 
 #path to subject folders containing .tsv event files from opengenre dataset, used by make_opengenre_labels
 # i.e, tsv files should be at opengenre_events_path/sub-00X/func/
@@ -33,8 +36,11 @@ elif env == "discovery":
 #path to preprocessed functional bold data of opengenre dataset, the pickled label files are output in each subject's folder here
 if env == "local":
     opengenre_preproc_path = "/Volumes/External/opengenre/preproc/"
+    pitchclass_preproc_path = "/Volumes/External/pitchclass/preproc/"
 elif env == "discovery":
     opengenre_preproc_path = "/isi/music/auditoryimagery2/seanthesis/opengenre/preproc/"
+    pitchclass_preproc_path = "/isi/music/auditoryimagery2/seanthesis/pitchclass/preproc/"
+
 
 if env == "local":
     PRETRAIN_LOG_PATH = "/Users/sean/Desktop/current_research/fmriBERTfix/fmriBERT/pretrain_logs/"
@@ -53,10 +59,14 @@ if env == "local":
     EPOCHS = 2
 elif env == "discovery":
     ATTENTION_HEADS = 5
-    EPOCHS = 10
+    EPOCHS = 3
 
 #when the binary classi task is samegenre, and there are N samples from each genre,
 # then we could potentially have (N-1) yes pairs and another N-1 no pairs
 #  the amount we actually take is ((N-1)*SAMEGENRE_CROSSPAIRS_PERCENT)//100
 SAMEGENRE_CROSSPAIRS_PERCENT = 100
+
+# leftsamples (of length 5) per run. test runs only had 100 because those 100 were repeated 3 more times.
+# 400*12 + 100*6 = 5400
+OG_SAMPLES_PER_RUN = 400
 

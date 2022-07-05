@@ -11,6 +11,7 @@ hemisphere="left"
 holdout=0
 count=0
 this_dir = opengenre_preproc_path + "training_data/seeded/2022-05-19/"
+from helpers import mask_flatten_combine_opengenre
 
 old_samples = this_dir + str(hemisphere) + "_seededtrainsamplesorig" + str(count) + ".p"
 old_labels = this_dir + str(hemisphere) + "_seededtrainlabelsorig" + str(count) + ".p"
@@ -26,7 +27,6 @@ new_labels = this_dir + str(hemisphere) + "_seededtrainlabelsnew" + str(holdout)
 #     nsamples = np.array(pickle.load(newsamples_fp))
 # with open(new_labels, "rb") as newlabels_fp:
 #     nlabels = np.array(pickle.load(newlabels_fp))
-
-poop="7::"
-poop2=poop.split(":")
-print(poop2)
+idxs = [1, 3, 4, 5, 6, 7]
+poop = random.sample(idxs,k=1)
+print(poop)
