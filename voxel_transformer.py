@@ -215,6 +215,7 @@ class Transformer(nn.Module):
             ref_samples=None,
             mask_task=None
     ):
+        self.mask_task=mask_task
         super(Transformer, self).__init__()
 
         self.encoder = Encoder(

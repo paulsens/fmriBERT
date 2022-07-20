@@ -16,7 +16,8 @@ import datetime
 
 val_flag=1
 random.seed(3)
-mask_variation=False
+mask_variation=True
+valid_accuracy=False
 
 if __name__ == "__main__":
     with torch.autograd.set_detect_anomaly(True):
@@ -49,7 +50,7 @@ if __name__ == "__main__":
         #dictionary of hyperparameters, eventually should probably come from command line
         hp_dict={
 
-            "task":"binaryonly",
+            "task":"multionly",
             "binary":"same_genre",
             "mask_task":"reconstruction",
             "COOL_DIVIDEND" : COOL_DIVIDEND,
@@ -59,9 +60,9 @@ if __name__ == "__main__":
             "CLS_flag" : 1,
             "BATCH_SIZE" : 1,
             "EPOCHS" : EPOCHS,
-            "LEARNING_RATE" : 0.0001,
+            "LEARNING_RATE" : 0.001,
             #Have to manually set the name of the folder whose training data you want to use, since there will be many
-            "data_dir" : "2022-05-02",
+            "data_dir" : "2022-06-12",
             #Manually set the hemisphere and iteration number of the dataset you want to use in that folder
             "hemisphere": "left",
             "count" : str(thiscount),
@@ -75,7 +76,7 @@ if __name__ == "__main__":
             "held_range":held_range
         }
         hp_dict["data_path"] = opengenre_preproc_path + "training_data/" + hp_dict["data_dir"] + "/"
-        torch.set_default_dtype(torch.float64)
+        torch.set_default_dtype(torch.float32)
 
         #set up logfile, PRETRAIN_LOG_PATH is defined in Constants.py
         today_dir = PRETRAIN_LOG_PATH+str(today)+"/"
@@ -163,6 +164,7 @@ if __name__ == "__main__":
         src_pad_sequence = [0]*voxel_dim
 
         model = Transformer(next_sequence_labels=same_genre_labels, num_genres=num_genres, src_pad_sequence=src_pad_sequence, max_length=max_length, voxel_dim=voxel_dim, ref_samples=ref_samples, mask_task=hp_dict["mask_task"]).to(hp_dict["device"])
+        model = model.float()
         model.to(hp_dict["device"])
 
         criterion_bin = nn.CrossEntropyLoss()
@@ -170,7 +172,7 @@ if __name__ == "__main__":
             criterion_multi = nn.CrossEntropyLoss()
             get_multi_acc = True
         elif hp_dict["mask_task"]=="reconstruction":
-            criterion_multi = nn.CrossEntropyLoss
+            criterion_multi = nn.MSELoss()
             get_multi_acc = False
         optimizer = optim.Adam(model.parameters(), lr=hp_dict["LEARNING_RATE"], betas=(0.5,0.9), weight_decay=0.0001)
 
@@ -182,6 +184,8 @@ if __name__ == "__main__":
 
             for X_batch, y_batch in train_loader:
                 batch_mask_indices = []
+                X_batch=X_batch.float()
+                y_batch=y_batch.float()
                 X_batch, y_batch = X_batch.to(hp_dict["device"]), y_batch.to(hp_dict["device"])
                 ytrue_bin_batch = [] #list of batch targets for binary classification task
                 ytrue_multi_batch = [] #list of batch targets for multi-classification task
@@ -193,7 +197,7 @@ if __name__ == "__main__":
                     ytrue_dist_multi1 = np.zeros((10,))  # we want a one-hot probability distrubtion over the 10 genre labels
                     ytrue_dist_multi2 = np.zeros((10,))  # only used when this sample gets two masks/replacements
                     #no return value from apply_masks, everything is updated by reference in the lists
-                    apply_masks(X_batch[x], y_batch[x], ref_samples, hp_dict, mask_variation, ytrue_multi_batch, sample_dists, ytrue_dist_multi1, ytrue_dist_multi2, batch_mask_indices, sample_mask_indices, log, heldout=False)
+                    apply_masks(X_batch[x], y_batch[x], ref_samples, hp_dict, mask_variation, ytrue_multi_batch, sample_dists, ytrue_dist_multi1, ytrue_dist_multi2, batch_mask_indices, sample_mask_indices, mask_task=hp_dict["mask_task"], log=log, heldout=False)
                 for y in range(0,hp_dict["BATCH_SIZE"]):
                     if(y_batch[y][0]):
                         ytrue_dist_bin = [0,1] #true, they are the same genre
@@ -218,6 +222,8 @@ if __name__ == "__main__":
 
                 #returns predictions for binary class and multiclass, in that order
                 ypred_bin_batch,ypred_multi_batch = model(X_batch, batch_mask_indices)
+                ypred_bin_batch = ypred_bin_batch.float()
+                ypred_multi_batch = ypred_multi_batch.float()
                 log.write("ypred_multi_batch has shape "+str(ypred_multi_batch.shape)+"\n and ytrue_multi_batch has shape "+str(ytrue_multi_batch.shape))
                 log.write("For binary classification, predictions are "+str(ypred_bin_batch)+" and true labels are "+str(ytrue_bin_batch)+"\n")
                 loss_bin = criterion_bin(ypred_bin_batch, ytrue_bin_batch)
@@ -228,13 +234,16 @@ if __name__ == "__main__":
 
                 if hp_dict["task"] == "binaryonly":
                     loss = loss_bin #toy example for just same-genre task
-                    acc = get_accuracy(ypred_bin_batch, ytrue_bin_batch, log)
+                    acc = get_accuracy(ypred_bin_batch, ytrue_bin_batch, hp_dict["binary"], log)
                 elif hp_dict["task"] == "multionly":
                     loss = loss_multi
-                    if(get_multi_acc):
-                        acc = get_accuracy(ypred_multi_batch, ytrue_multi_batch, log)
-                    else:
-                        acc = 0 #placeholder until i figure out how to do accuracy for non-genre-decoding tasks
+                    print("batch loss is "+str(loss))
+                    acc = get_accuracy(ypred_multi_batch, ytrue_multi_batch, hp_dict["mask_task"], log)
+
+                    # if(get_multi_acc):
+                    #     acc = get_accuracy(ypred_multi_batch, ytrue_multi_batch, hp_dict["mask_task"], log)
+                    # else:
+                    #     acc = 0 #placeholder until i figure out how to do accuracy for non-genre-decoding tasks
                 else:
                     loss = (loss_bin+loss_multi)/2 #as per devlin et al, loss is the average of the two tasks' losses
                     acc = 0
@@ -244,7 +253,12 @@ if __name__ == "__main__":
                 optimizer.step()
 
                 epoch_loss += loss.item()
-                epoch_acc += acc.item()
+                #the word valid here does not refer to validation, but rather is this task something we can obtain a valid accuracy for
+                if(valid_accuracy):
+                    epoch_acc += acc.item()
+                # if not valid_accuracy:
+                #     print("Accuracy is invalid.")
+                #     log.write("Accuracy is invalid.")
                 #log.write("added "+str(acc.item())+" to epoch_acc")
 
             # now calculate validation loss/acc, turn off gradient
@@ -253,6 +267,8 @@ if __name__ == "__main__":
                     val_loss=0
                     val_acc=0
                     for X_batch_val, y_batch_val in val_loader:
+                        X_batch_val=X_batch_val.float()
+                        y_batch_val=y_batch_val.float()
                         batch_mask_indices_val = []
                         ytrue_bin_batch_val = []  # list of batch targets for binary classification task
                         ytrue_multi_batch_val = []  # list of batch targets for multi-classification task
@@ -266,7 +282,7 @@ if __name__ == "__main__":
                             ytrue_dist_multi2_val = np.zeros(
                                 (10,))  # only used when this sample gets two masks/replacements
                             # no return value from apply_masks, everything is updated by reference in the lists
-                            apply_masks(X_batch_val[x], y_batch_val[x], ref_samples, hp_dict, mask_variation,   ytrue_multi_batch_val, sample_dists_val, ytrue_dist_multi1_val, ytrue_dist_multi2_val, batch_mask_indices_val, sample_mask_indices_val, log, heldout=False)
+                            apply_masks(X_batch_val[x], y_batch_val[x], ref_samples, hp_dict, mask_variation,   ytrue_multi_batch_val, sample_dists_val, ytrue_dist_multi1_val, ytrue_dist_multi2_val, batch_mask_indices_val, sample_mask_indices_val, mask_task=hp_dict["mask_task"], log=log, heldout=False)
                         for y in range(0, hp_dict["BATCH_SIZE"]):
                             if (y_batch_val[y][0]):
                                 ytrue_dist_bin_val = [0, 1]  # true, they are the same genre
@@ -283,6 +299,8 @@ if __name__ == "__main__":
 
                         # returns predictions for binary class and multiclass, in that order
                         ypred_bin_batch_val, ypred_multi_batch_val = model(X_batch_val, batch_mask_indices_val)
+                        ypred_bin_batch_val = ypred_bin_batch_val.float()
+                        ypred_multi_batch_val = ypred_multi_batch_val.float()
                         log.write("ypred_multi_batch_val has shape " + str(
                             ypred_multi_batch.shape) + "\n and ytrue_multi_batch_val has shape " + str(
                             ytrue_multi_batch.shape))
@@ -295,12 +313,14 @@ if __name__ == "__main__":
 
                         if hp_dict["task"] == "binaryonly":
                             loss = loss_bin  # toy example for just same-genre task
-                            acc = get_accuracy(ypred_bin_batch, ytrue_bin_batch, log)
+                            acc = get_accuracy(ypred_bin_batch, ytrue_bin_batch, hp_dict["binary"],log)
                         elif hp_dict["task"] == "multionly":
                             loss = loss_multi
-                            if(get_multi_acc):
-                                acc = get_accuracy(ypred_multi_batch, ytrue_multi_batch, log)
-                            else: acc = 0
+                            acc = get_accuracy(ypred_multi_batch, ytrue_multi_batch, hp_dict["mask_task"], log)
+
+                            # if(get_multi_acc):
+                            #     acc = get_accuracy(ypred_multi_batch, ytrue_multi_batch, log)
+                            # else: acc = 0
                         else:
                             loss = (
                                                loss_bin + loss_multi) / 2  # as per devlin et al, loss is the average of the two tasks' losses
@@ -308,7 +328,8 @@ if __name__ == "__main__":
                         # log.write("The total loss this iteration was "+str(loss)+"\n\n")
 
                         val_loss += loss.item()
-                        val_acc += acc.item()
+                        if(valid_accuracy):
+                            val_acc += acc.item()
 
 
             print(f'Epoch {e+0:03}: | Loss: {epoch_loss/len(train_loader):.5f} | Acc: {epoch_acc/len(train_loader):.3f}')
@@ -317,6 +338,9 @@ if __name__ == "__main__":
             if val_X is not None:
                 print(f'Validation: | Loss: {val_loss/len(val_loader):.5f} | Acc: {val_acc/len(val_loader):.3f}')
                 log.write(f'Validation: | Loss: {val_loss/len(val_loader):.5f} | Acc: {val_acc/len(val_loader):.3f}')
+                # if not valid_accuracy:
+                #     print("Accuracy is invalid.")
+                #     log.write("Accuracy is invalid.")
 
             #print(f'Epoch {e+0:03}: | Loss: {epoch_loss/len(train_loader):.5f}')
             #log.write(f'Epoch {e+0:03}: | Loss: {epoch_loss/len(train_loader):.5f}')

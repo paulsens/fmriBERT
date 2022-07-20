@@ -1,4 +1,4 @@
-env = "discovery"
+env = "local"
 if env == "local":
     proj_dir = "/Users/sean/Desktop/current_research/fmriBERTfix/fmriBERT/"
 elif env =="discovery":

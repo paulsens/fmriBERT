@@ -18,6 +18,8 @@ from sklearn.linear_model import Ridge
 from sklearn.preprocessing import PolynomialFeatures, SplineTransformer
 from sklearn.pipeline import make_pipeline
 
+cos = nn.CosineSimilarity(dim=-1, eps=1e-6)
+
 class TrainData(Dataset):
     def __init__(self, X_data, y_data):
         self.X_data = X_data
@@ -229,21 +231,27 @@ def mask_flatten_combine_opengenre(hemisphere, threshold, set="opengenre", inclu
 
 
 
-def get_accuracy(y_pred, y_true, log=None):
+def get_accuracy(y_pred, y_true, task, log=None):
     # print("y_pred has shape "+str(y_pred.shape))
     # print("y_true has shape "+str(y_true.shape))
-    prediction_idxs = torch.argmax(y_pred,dim=1)
-    true_idxs = torch.argmax(y_true, dim=1)
+    cos_sim_tasks=["reconstruction"] #list of tasks where accuracy is just cosine similarity
+    if task in cos_sim_tasks:
+        acc=cos(y_pred,y_true)
+        acc=torch.mean(acc)
+        print("it's a cos_sim task, cosine sim is "+str(acc))
+    else:
+        prediction_idxs = torch.argmax(y_pred,dim=1)
+        true_idxs = torch.argmax(y_true, dim=1)
 
-    correct_sum = (prediction_idxs == true_idxs).sum().float()
-    # if(log is  not None):
-    #     log.write("prediction idx are " + str(prediction_idxs))
-    #     log.write("true idxs are " + str(true_idxs))
-    #     log.write("correct sum is "+str(correct_sum))
-    acc = correct_sum/y_true.shape[0]
-    acc = torch.round(acc*100)
-    # if(log is not None):
-    #     log.write("accuracy for this batch was "+str(acc))
+        correct_sum = (prediction_idxs == true_idxs).sum().float()
+        # if(log is  not None):
+        #     log.write("prediction idx are " + str(prediction_idxs))
+        #     log.write("true idxs are " + str(true_idxs))
+        #     log.write("correct sum is "+str(correct_sum))
+        acc = correct_sum/y_true.shape[0]
+        acc = torch.round(acc*100)
+        # if(log is not None):
+        #     log.write("accuracy for this batch was "+str(acc))
     return acc
 
 #treat each voxel as a channel
@@ -330,8 +338,8 @@ def train_val_dataset(dataset, val_split=0.1):
     datasets["train"] = Subset(dataset, train_idx)
     datasets["val"] = Subset(dataset, val_idx)
     return datasets
-
-def apply_masks(x, y, ref_samples, hp_dict, mask_variation, ytrue_multi_batch, sample_dists, ytrue_dist_multi1, ytrue_dist_multi2, batch_mask_indices, sample_mask_indices, log, heldout=False):
+#applies masks AND fills ytrue_multi_batch, the ground truth list for the non-binary task. the fact that it's named "multi" distinguishes it from "binary" and is legacy naming from when it was binary class vs multi class, but now it's just a stand-in for the mask task, which isn't necessarily classification at all
+def apply_masks(x, y, ref_samples, hp_dict, mask_variation, ytrue_multi_batch, sample_dists, ytrue_dist_multi1, ytrue_dist_multi2, batch_mask_indices, sample_mask_indices, mask_task, log, heldout=False):
 
     if (mask_variation):
         # TRAINING samples per subject
@@ -371,6 +379,7 @@ def apply_masks(x, y, ref_samples, hp_dict, mask_variation, ytrue_multi_batch, s
                 ref_idx=ref_idx_left
             else:
                 ref_idx=ref_idx_right
+            ref_idx=int(ref_idx)
             r_action=random.randint(1,100)
             #if r_action<=10 do nothing
             if 10<r_action<=20: #replace with another TR from the same subject, but not next to it in refsamples
@@ -403,20 +412,37 @@ def apply_masks(x, y, ref_samples, hp_dict, mask_variation, ytrue_multi_batch, s
                 for i in range(0, len(x[0])):
                     x[idx][i]=0 #zero it out
                 x[idx][1]=1
-            #masking/replacing is done for this idx, now add label information to samples_dists
+            #masking/replacing is done for this idx, now add label information to list of labels for this batch
             if(idx>6):
-                ytrue_multi_idx=y[2]
+                ytrue_multi_idx=int(y[2])
             else:
-                ytrue_multi_idx=y[1] #genre labels for left/right sample
+                ytrue_multi_idx=int(y[1]) #genre labels for left/right sample
+
             if first:
-                ytrue_dist_multi1[ytrue_multi_idx]=1 #put mass on that genre label
                 first=False
                 #sample_dists.append(ytrue_dist_multi1.tolist())
-                ytrue_multi_batch.append(ytrue_dist_multi1.tolist())
+                if(mask_task=="genre_decode"):
+                    ytrue_dist_multi1[ytrue_multi_idx] = 1  # put mass on that genre label
+                    ytrue_multi_batch.append(ytrue_dist_multi1.tolist())
+                elif(mask_task=="reconstruction"):
+                    #print("ref index is "+str(ref_idx)+" and idx and idx%6-1 are "+str(idx)+", "+str((idx%6)-1))
+                    #get the voxel_dim length vector of the TR that was replaced, this is the target for this sample
+                    #remember ref samples vectors only have length 5 and dont have CLS or SEP, hence mod 6 and minus 1
+                    ytrue_multi_batch.append(copy.deepcopy(ref_samples[ref_idx][(idx%6)-1]))
+
+                else:
+                    log.write("illegal value for mask task in apply masks, got "+str(mask_task)+", quitting...\n")
             else:
                 ytrue_dist_multi2[ytrue_multi_idx]=1 #if this is the second replacement/mask use the second distribution
                 #sample_dists.append(ytrue_dist_multi2.tolist())
-                ytrue_multi_batch.append(ytrue_dist_multi2.tolist())
+                if(mask_task=="genre_decode"):
+                    ytrue_multi_batch.append(ytrue_dist_multi2.tolist())
+                elif(mask_task=="reconstruction"):
+                    #get the voxel_dim length vector of the TR that was replaced, this is the target for this sample
+                    ytrue_multi_batch.append(copy.deepcopy(ref_samples[ref_idx][(idx%6)-1]))
+
+                else:
+                    log.write("illegal value for mask task in apply masks, got "+str(mask_task)+", quitting...\n")
 
         #end of for (idx in idxs)
         if(k==1):
@@ -438,7 +464,14 @@ def apply_masks(x, y, ref_samples, hp_dict, mask_variation, ytrue_multi_batch, s
         ytrue_dist_multi1[ytrue_multi_idx] = 1  # set all the probability mass on the true index
         #sample_dists.append(ytrue_dist_multi1.tolist())
         #ytrue_multi_batch.append(sample_dists)
-        ytrue_multi_batch.append(ytrue_dist_multi1)
+        if(mask_task=="genre_decode"):
+            ytrue_multi_batch.append(ytrue_dist_multi1)
+        elif(mask_task=="reconstruction"):
+            #the label is just the TR image that we chose to mask
+            ytrue_multi_batch.append(copy.deepcopy(x[mask_choice]))
+        else:
+            log.write("illegal value for mask task in apply masks, got " + str(mask_task) + ", quitting...\n")
+
         for i in range(0, len(x[0])):
             x[mask_choice][i] = 0  # zero it out
         x[mask_choice][1]=1
