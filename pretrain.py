@@ -17,7 +17,7 @@ import datetime
 val_flag=1
 random.seed(3)
 mask_variation=True
-valid_accuracy=False
+valid_accuracy=True
 
 if __name__ == "__main__":
     with torch.autograd.set_detect_anomaly(True):
@@ -51,7 +51,7 @@ if __name__ == "__main__":
         hp_dict={
 
             "task":"multionly",
-            "binary":"same_genre",
+            "binary":"nextseq", #same_genre or nextseq
             "mask_task":"reconstruction",
             "COOL_DIVIDEND" : COOL_DIVIDEND,
             "ATTENTION_HEADS" : ATTENTION_HEADS,
@@ -174,13 +174,14 @@ if __name__ == "__main__":
         elif hp_dict["mask_task"]=="reconstruction":
             criterion_multi = nn.MSELoss()
             get_multi_acc = False
-        optimizer = optim.Adam(model.parameters(), lr=hp_dict["LEARNING_RATE"], betas=(0.5,0.9), weight_decay=0.0001)
+        optimizer = optim.Adam(model.parameters(), lr=hp_dict["LEARNING_RATE"], betas=(0.9,0.999), weight_decay=0.0001)
 
         for e in range(1, hp_dict["EPOCHS"]+1):
             model.train()  # sets model status, doesn't actually start training
                 #need the above every epoch because the validation part below sets model.eval()
             epoch_loss = 0
             epoch_acc = 0
+            epoch_acc2 = 0
 
             for X_batch, y_batch in train_loader:
                 batch_mask_indices = []
@@ -237,16 +238,21 @@ if __name__ == "__main__":
                     acc = get_accuracy(ypred_bin_batch, ytrue_bin_batch, hp_dict["binary"], log)
                 elif hp_dict["task"] == "multionly":
                     loss = loss_multi
-                    print("batch loss is "+str(loss))
+                    print_choice=random.randint(0,100)
+                    if(print_choice>98):
+                        print("batch loss is "+str(loss))
+                        print("ypred is "+str(ypred_multi_batch))
+                        print("ytrue is "+str(ytrue_multi_batch))
                     acc = get_accuracy(ypred_multi_batch, ytrue_multi_batch, hp_dict["mask_task"], log)
 
                     # if(get_multi_acc):
                     #     acc = get_accuracy(ypred_multi_batch, ytrue_multi_batch, hp_dict["mask_task"], log)
                     # else:
                     #     acc = 0 #placeholder until i figure out how to do accuracy for non-genre-decoding tasks
-                else:
+                elif hp_dict["task"]=="both":
                     loss = (loss_bin+loss_multi)/2 #as per devlin et al, loss is the average of the two tasks' losses
-                    acc = 0
+                    acc1 = get_accuracy(ypred_bin_batch, ytrue_bin_batch, hp_dict["binary"], log)
+                    acc2 = get_accuracy(ypred_multi_batch, ytrue_multi_batch, hp_dict["mask_task"], log)
                 #log.write("The total loss this iteration was "+str(loss)+"\n\n")
 
                 loss.backward()
@@ -255,7 +261,12 @@ if __name__ == "__main__":
                 epoch_loss += loss.item()
                 #the word valid here does not refer to validation, but rather is this task something we can obtain a valid accuracy for
                 if(valid_accuracy):
-                    epoch_acc += acc.item()
+                    if(hp_dict["task"]=="both"):
+                        epoch_acc+=acc1.item()
+                        epoch_acc2+=acc2.item()
+                    else:
+                        epoch_acc += acc.item()
+                        epoch_acc2 += 0
                 # if not valid_accuracy:
                 #     print("Accuracy is invalid.")
                 #     log.write("Accuracy is invalid.")
@@ -266,6 +277,7 @@ if __name__ == "__main__":
                 with torch.no_grad():
                     val_loss=0
                     val_acc=0
+                    val_acc2=0
                     for X_batch_val, y_batch_val in val_loader:
                         X_batch_val=X_batch_val.float()
                         y_batch_val=y_batch_val.float()
@@ -302,42 +314,56 @@ if __name__ == "__main__":
                         ypred_bin_batch_val = ypred_bin_batch_val.float()
                         ypred_multi_batch_val = ypred_multi_batch_val.float()
                         log.write("ypred_multi_batch_val has shape " + str(
-                            ypred_multi_batch.shape) + "\n and ytrue_multi_batch_val has shape " + str(
-                            ytrue_multi_batch.shape))
+                            ypred_multi_batch_val.shape) + "\n and ytrue_multi_batch_val has shape " + str(
+                            ytrue_multi_batch_val.shape))
                         # log.write("For binary classification, predictions are "+str(ypred_bin_batch)+" and true labels are "+str(ytrue_bin_batch)+"\n")
                         loss_bin_val = criterion_bin(ypred_bin_batch_val, ytrue_bin_batch_val)
                         # log.write("The loss in that case was "+str(loss_bin)+"\n")
                         # log.write("For genre classification, predictions are "+str(ypred_multi_batch)+" and true labels are "+str(ytrue_multi_batch)+"\n")
-                        loss_multi = criterion_multi(ypred_multi_batch_val, ytrue_multi_batch_val)
+                        loss_multi_val = criterion_multi(ypred_multi_batch_val, ytrue_multi_batch_val)
                         # log.write("The loss in that case was "+str(loss_multi)+"\n\n")
 
                         if hp_dict["task"] == "binaryonly":
-                            loss = loss_bin  # toy example for just same-genre task
-                            acc = get_accuracy(ypred_bin_batch, ytrue_bin_batch, hp_dict["binary"],log)
+                            loss = loss_bin_val  # toy example for just same-genre task
+                            acc = get_accuracy(ypred_bin_batch_val, ytrue_bin_batch_val, hp_dict["binary"],log)
                         elif hp_dict["task"] == "multionly":
-                            loss = loss_multi
-                            acc = get_accuracy(ypred_multi_batch, ytrue_multi_batch, hp_dict["mask_task"], log)
+                            loss = loss_multi_val
+                            acc = get_accuracy(ypred_multi_batch_val, ytrue_multi_batch_val, hp_dict["mask_task"], log)
 
                             # if(get_multi_acc):
                             #     acc = get_accuracy(ypred_multi_batch, ytrue_multi_batch, log)
                             # else: acc = 0
-                        else:
+                        elif hp_dict["task"]=="both":
                             loss = (
-                                               loss_bin + loss_multi) / 2  # as per devlin et al, loss is the average of the two tasks' losses
-                            acc = 0
+                                               loss_bin_val + loss_multi_val) / 2  # as per devlin et al, loss is the average of the two tasks' losses
+                            acc1 = get_accuracy(ypred_bin_batch_val, ytrue_bin_batch_val, hp_dict["binary"],log)
+                            acc2 = get_accuracy(ypred_multi_batch_val, ytrue_multi_batch_val, hp_dict["mask_task"], log)
                         # log.write("The total loss this iteration was "+str(loss)+"\n\n")
 
                         val_loss += loss.item()
                         if(valid_accuracy):
-                            val_acc += acc.item()
+                            if(hp_dict["task"]=="both"):
+                                val_acc += acc1.item()
+                                val_acc2 += acc2.item()
+                            else:
+                                val_acc += acc.item()
+                                val_acc2 += 0
 
 
-            print(f'Epoch {e+0:03}: | Loss: {epoch_loss/len(train_loader):.5f} | Acc: {epoch_acc/len(train_loader):.3f}')
+            print(f'Epoch {e+0:03}: | Loss: {epoch_loss/len(train_loader):.5f} | Acc: {epoch_acc/len(train_loader):.3f} | Acc2: {epoch_acc2/len(train_loader):.3f}')
 
-            log.write(f'Epoch {e+0:03}: | Loss: {epoch_loss/len(train_loader):.5f} | Acc: {epoch_acc/len(train_loader):.3f}')
+
+            log.write(f'Epoch {e+0:03}: | Loss: {epoch_loss/len(train_loader):.5f} | Acc: {epoch_acc/len(train_loader):.3f} | Acc2: {epoch_acc2/len(train_loader):.3f}')
+            if(hp_dict["task"]=="both"):
+                print("Bin loss was "+str(loss_bin)+ " and multi loss was "+str(loss_multi))
+                log.write("Bin loss was "+str(loss_bin)+ " and multi loss was "+str(loss_multi))
             if val_X is not None:
-                print(f'Validation: | Loss: {val_loss/len(val_loader):.5f} | Acc: {val_acc/len(val_loader):.3f}')
-                log.write(f'Validation: | Loss: {val_loss/len(val_loader):.5f} | Acc: {val_acc/len(val_loader):.3f}')
+                print(f'Validation: | Loss: {val_loss/len(val_loader):.5f} | Acc: {val_acc/len(val_loader):.3f} | Acc2: {val_acc2/len(val_loader):.3f}')
+                log.write(f'Validation: | Loss: {val_loss/len(val_loader):.5f} | Acc: {val_acc/len(val_loader):.3f} | Acc2: {val_acc2/len(val_loader):.3f}')
+
+                if(hp_dict["task"]=="both"):
+                    print("Bin val loss was " + str(loss_bin_val) + " and multi val loss was " + str(loss_multi_val))
+                    log.write("Bin loss was " + str(loss_bin_val) + " and multi loss was " + str(loss_multi_val))
                 # if not valid_accuracy:
                 #     print("Accuracy is invalid.")
                 #     log.write("Accuracy is invalid.")
@@ -346,15 +372,15 @@ if __name__ == "__main__":
             #log.write(f'Epoch {e+0:03}: | Loss: {epoch_loss/len(train_loader):.5f}')
 
 
-        # modelcount=0
-        # model_path = hp_dict["data_path"]+str(hp_dict["task"])+"_states_"+str(thiscount)+str(modelcount)+".pt"
-        # while(os.path.exists(model_path)):
-        #     modelcount+=1
-        #     model_path = hp_dict["data_path"] + str(hp_dict["task"]) + "_states_" + str(thiscount) + str(
-        #         modelcount) + ".pt"
-        #
-        # torch.save(model.state_dict(),model_path)
-        # model_path = hp_dict["data_path"]+str(hp_dict["task"])+"_full_"+str(thiscount)+str(modelcount)+".pt"
-        # torch.save(model,model_path)
+        modelcount=0
+        model_path = hp_dict["data_path"]+"trained_models/"+str(hp_dict["task"])+"_states_"+str(thiscount)+str(modelcount)+".pt"
+        while(os.path.exists(model_path)):
+            modelcount+=1
+            model_path = hp_dict["data_path"]+"trained_models/" + str(hp_dict["task"]) + "_states_" + str(thiscount) + str(
+                modelcount) + ".pt"
+
+        torch.save(model.state_dict(),model_path)
+        model_path = hp_dict["data_path"]+"trained_models/"+str(hp_dict["task"])+"_full_"+str(thiscount)+str(modelcount)+".pt"
+        torch.save(model,model_path)
 
     log.close()

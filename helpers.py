@@ -135,20 +135,21 @@ def stack_opengenre_labels(verbose=1):
 #hemisphere is either "left" or "right"
 #include token dims tells us whether to insert 3 extra dimensions at the front of the lists to be used by pretraining tokens
 #  i.e if you are going to be pretraining with fmribert, this should be set to True.
-def mask_flatten_combine_opengenre(hemisphere, threshold, set="opengenre", include_token_dims=1, verbose=1):
+def mask_flatten_combine_opengenre(hemisphere, threshold, set="pitchclass", include_token_dims=1, verbose=0):
     # Loop through subjects
     sublist=None
     if(set=="pitchclass"):
-        sublist= ["1088", "1125", "1401", "1410", "1419", "1427", "1541", "1571", "1581", "1660", "1661", "1664", "1665",
-               "1668", "1672", "1678", "1680"]
+        sublist= ["1088", "1125", "1401", "1410", "1419", "1427", "1541", "1571", "1581", "1660", "1661", "1664", "1665","1668", "1672", "1678", "1680"]
+        preproc_path=pitchclass_preproc_path
     elif(set=="opengenre"):
         sublist=["001", "002", "003", "004", "005"]
+        preproc_path = opengenre_preproc_path
     for sub in sublist:
         if(set=="pitchclass"):
             sub="00"+sub
         #opengenre_preproc_path is defined in Constants.py
         #subdir = opengenre_preproc_path + "sub-sid" + sub + "/" + "sub-sid" + sub + "/"
-        subdir = opengenre_preproc_path + "sub-sid" + sub + "/" + "sub-sid00" + sub + "/"
+        subdir = preproc_path + "sub-sid" + sub + "/" + "sub-sid" + sub + "/"
 
         #load binary mask
         mask_fp = open(subdir + "STG_masks/STGbinary_"+hemisphere+"_t"+threshold+".p","rb")
@@ -197,13 +198,20 @@ def mask_flatten_combine_opengenre(hemisphere, threshold, set="opengenre", inclu
                     filepath = filedir+"bold_resampled.nii.gz" #opengenre had to be resampled down to correct space
                 else:
                     filedir = pitchclass_preproc_path + "sub-sid" + sub + "/" + "sub-sid" + sub +\
-                          "/dt-neuro-func-task.tag-"+task+".tag-preprocessed.run-"+runstr+".id/"
-                    filepath = filedir+"bold.nii" #pitchclass data is already in MNI152Lin2009, didn't need to be resampled
+                          "/dt-neuro-func-task.tag-preprocessed.run-"+runstr+".id/"
+                    filepath = filedir+"bold.nii.gz" #pitchclass data is already in MNI152Lin2009, didn't need to be resampled
                 bold_img = nib.load(filepath)
                 bold_data = bold_img.get_fdata()
 
                 # steps 0 through 9 inclusive are dummy data
-                for t in range(10,410):
+                if(set=="opengenre"):
+                    start_idx=10
+                    end_idx=410
+                elif(set=="pitchclass"):
+                    start_idx=0
+                    end_idx=len(bold_data[0][0][0])
+                for t in range(start_idx,end_idx):
+                    #print("end_idx should be the number of timesteps per subject and is "+str(end_idx))
                     #array to hold flattened ROI data at timestep t
                     # add three extra dimensions for pretraining tokens if flag is set
                     if(include_token_dims):
@@ -238,7 +246,7 @@ def get_accuracy(y_pred, y_true, task, log=None):
     if task in cos_sim_tasks:
         acc=cos(y_pred,y_true)
         acc=torch.mean(acc)
-        print("it's a cos_sim task, cosine sim is "+str(acc))
+        #print("it's a cos_sim task, cosine sim is "+str(acc))
     else:
         prediction_idxs = torch.argmax(y_pred,dim=1)
         true_idxs = torch.argmax(y_true, dim=1)
@@ -480,7 +488,19 @@ def apply_masks(x, y, ref_samples, hp_dict, mask_variation, ytrue_multi_batch, s
     #add mask indices for this one sample to batch list
     batch_mask_indices.append(sample_mask_indices)
 
-
+def make_pitchclass_code_dict(targets_dir, code_dict):
+    start=False
+    with open(targets_dir+"condition_labels_code.txt", "r") as labels_fp:
+        line = labels_fp.readline()
+        while line:
+            if line.strip()=="52 - E3":
+                start=True
+            if start:
+                temp=line.split(" ")
+                code=temp[0] #the numerical code
+                note=temp[2] #the pitchclass
+                code_dict[code]=note
+            line = labels_fp.readline()
 
 if __name__=="__main__":
     # create pickled lists of genre labels as strings and indices based on the events.tsv files from opengenre dataset
@@ -492,8 +512,8 @@ if __name__=="__main__":
     # uses the binary masks to grab data, fixes x first then y then z, so flattens in the reverse order
     #  combines all 8 runs for each subject, note first 10 of 410 TRs in each run are dummy data and not used
     #   pass in the hemisphere and the probability inclusion threshold as a string, and optional verbose parameter, default is True
-    #mask_flatten_combine_opengenre("left", "23")
-    #mask_flatten_combine_opengenre("right", "23")
+    mask_flatten_combine_opengenre("left", "23")
+    mask_flatten_combine_opengenre("right", "23")
     #make_pretraining_data("23", "left")
-    print("none")
+    #print("none")
 

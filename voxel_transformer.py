@@ -257,7 +257,6 @@ class Transformer(nn.Module):
             nn.Linear(voxel_dim, voxel_dim),
             nn.ReLU(),
             nn.Linear(voxel_dim, voxel_dim),
-            nn.ReLU()
         )
 
         self.src_pad_sequence = src_pad_sequence

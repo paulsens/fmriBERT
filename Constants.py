@@ -1,8 +1,10 @@
-env = "local"
+env = "discovery"
 if env == "local":
     proj_dir = "/Users/sean/Desktop/current_research/fmriBERTfix/fmriBERT/"
+    targets_dir = proj_dir+"targets/"
 elif env =="discovery":
     proj_dir = "/isi/music/auditoryimagery2/seanthesis/"
+
 pitch_dir = proj_dir + "pitchclass/"
 curr_sub = "sid001088"
 stg_file = pitch_dir + curr_sub+"/1030/STGsamples.p"
@@ -19,7 +21,42 @@ genrelabel_dict = {
     v: k for k, v in genre_dict.items()
 }
 
-
+#dictionaries for getting the accession string and major key from subject id
+accession_dict = {
+"sub-sid001401":"A002636",
+"sub-sid001419":"A002659",
+"sub-sid001410":"A002677",
+"sub-sid001541":"A002979",
+"sub-sid001427":"A002996",
+"sub-sid001088":"A003000",
+"sub-sid001581":"A003067",
+"sub-sid001571":"A003219",
+"sub-sid001660":"A003231",
+"sub-sid001661":"A003233",
+"sub-sid001664":"A003238",
+"sub-sid001665":"A003239",
+"sub-sid001125":"A003243",
+"sub-sid001668":"A003247",
+"sub-sid001672":"A003259",
+"sub-sid001678":"A003271",
+"sub-sid001680":"A003274"}
+majorkey_dict = {"sub-sid001401":"E",
+"sub-sid001419":"F",
+"sub-sid001410":"E",
+"sub-sid001541":"F",
+"sub-sid001427":"E",
+"sub-sid001088":"F",
+"sub-sid001581":"F",
+"sub-sid001571":"F",
+"sub-sid001660":"E",
+"sub-sid001661":"E",
+"sub-sid001664":"F",
+"sub-sid001665":"E",
+"sub-sid001125":"F",
+"sub-sid001668":"E",
+"sub-sid001672":"F",
+"sub-sid001678":"E",
+"sub-sid001680":"E"}
 #number of runs for each task in the opengenre dataset
 runs_dict = {"Test": 6, "Training": 12}
 runs_dict2 = {"Training":8}
@@ -59,7 +96,7 @@ if env == "local":
     EPOCHS = 2
 elif env == "discovery":
     ATTENTION_HEADS = 5
-    EPOCHS = 3
+    EPOCHS = 2
 
 #when the binary classi task is samegenre, and there are N samples from each genre,
 # then we could potentially have (N-1) yes pairs and another N-1 no pairs
