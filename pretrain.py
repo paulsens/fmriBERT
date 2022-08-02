@@ -18,6 +18,8 @@ val_flag=1
 random.seed(3)
 mask_variation=True
 valid_accuracy=True
+bintask_weight = 0.7
+multitask_weight = 0.3 #if we're just averaging then these two weights would both be 0.5
 
 if __name__ == "__main__":
     with torch.autograd.set_detect_anomaly(True):
@@ -50,7 +52,7 @@ if __name__ == "__main__":
         #dictionary of hyperparameters, eventually should probably come from command line
         hp_dict={
 
-            "task":"multionly",
+            "task":"both",
             "binary":"nextseq", #same_genre or nextseq
             "mask_task":"reconstruction",
             "COOL_DIVIDEND" : COOL_DIVIDEND,
@@ -250,7 +252,7 @@ if __name__ == "__main__":
                     # else:
                     #     acc = 0 #placeholder until i figure out how to do accuracy for non-genre-decoding tasks
                 elif hp_dict["task"]=="both":
-                    loss = (loss_bin+loss_multi)/2 #as per devlin et al, loss is the average of the two tasks' losses
+                    loss = (loss_bin*bintask_weight) + (loss_multi*multitask_weight) #as per devlin et al, loss is the average of the two tasks' losses, in which case both weights would be 0.5
                     acc1 = get_accuracy(ypred_bin_batch, ytrue_bin_batch, hp_dict["binary"], log)
                     acc2 = get_accuracy(ypred_multi_batch, ytrue_multi_batch, hp_dict["mask_task"], log)
                 #log.write("The total loss this iteration was "+str(loss)+"\n\n")
@@ -334,8 +336,8 @@ if __name__ == "__main__":
                             #     acc = get_accuracy(ypred_multi_batch, ytrue_multi_batch, log)
                             # else: acc = 0
                         elif hp_dict["task"]=="both":
-                            loss = (
-                                               loss_bin_val + loss_multi_val) / 2  # as per devlin et al, loss is the average of the two tasks' losses
+                            loss = (loss_bin * bintask_weight) + (
+                                        loss_multi * multitask_weight)  # as per devlin et al, loss is the average of the two tasks' losses, in which case both weights would be 0.5
                             acc1 = get_accuracy(ypred_bin_batch_val, ytrue_bin_batch_val, hp_dict["binary"],log)
                             acc2 = get_accuracy(ypred_multi_batch_val, ytrue_multi_batch_val, hp_dict["mask_task"], log)
                         # log.write("The total loss this iteration was "+str(loss)+"\n\n")
