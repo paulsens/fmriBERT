@@ -490,17 +490,68 @@ def apply_masks(x, y, ref_samples, hp_dict, mask_variation, ytrue_multi_batch, s
 
 def make_pitchclass_code_dict(targets_dir, code_dict):
     start=False
-    with open(targets_dir+"condition_labels_code.txt", "r") as labels_fp:
+    with open(targets_dir+"condition_labels.txt", "r") as labels_fp:
         line = labels_fp.readline()
         while line:
-            if line.strip()=="52 - E3":
+            if line.strip()=="0 - rest state":
                 start=True
             if start:
-                temp=line.split(" ")
+                temp=line.split(" - ")
                 code=temp[0] #the numerical code
-                note=temp[2] #the pitchclass
+                note=temp[1] #the condition, mostly notes + timbre
                 code_dict[code]=note
+            if code=="1289":
+                print("Code dict completed.\n")
+                break
             line = labels_fp.readline()
+
+#dictionary mapping subject ID to tuple of (subidx, accession, majorkey)
+ # subidx is 20-42 inclusive, accession looks like A00XXXX, majorkey either E or F
+def make_sub_info_dict(targets_dir, info_dict):
+    csv_path=targets_dir+"subj-id-accession-key.csv"
+    with open(csv_path,"r") as csv_fp:
+        line=csv_fp.readline() #the first line is junk
+        line=csv_fp.readline()
+
+        while line:
+            #example line is 20,SID001401,A002636,E
+            temp=line.strip().split(",")
+            idx=temp[0]
+            sid=temp[1].lower()
+            accession=temp[2] #accessions are used in filenames and such in caps, no need to .lower() this
+            majorkey=temp[3]
+
+            info_dict[sid]=(idx, accession, majorkey)
+            line=csv_fp.readline()
+
+# def make_sub_5gram_dict(targets_dir, code_dict, sub_info_dict, sub_5gram_dict):
+#     sublist=sub_info_dict.keys()
+#     lloyd_path = targets_dir + "Formatted_Key_Logs/" #logs containing
+#
+#     for sub in sublist:
+#         sub_info = sub_info_dict[sub]
+#         idx=str(sub_info[0])
+#         if int(idx)>25: #format of these files changes for idx >= 26
+#
+#         accession=str(sub_info[1])
+#         majorkey=str(sub_info[2])
+#         counter=0 #counts from 0 to 1863 inclusive (counts all TRs)
+#         subcounter=0 #counts from 0 to 232 inclusive then resets (counts TRs within each run)
+#         runcounter=0 #counts from 0 to 7 inclusive then resets
+#
+#         for run in range(0,8):
+#             lloyd_fp = open(lloyd_path+"FLog_"+idx+"_run_"+str(run)+".csv", "r") #for example, FLog_20_run_0.csv
+#                                                                                 #numbered 0 to 7
+#             lloyd_line = lloyd_fp.readline()
+#             lloyd_line = lloyd_fp.readline() #first line is junk, so start with second line
+#             run_fp = open(targets_dir+accession+"_run-0"+str(run+1)+".txt", "r") #for example, A002636_run-01.txt
+#                                                                                 #numbered 01 to 08
+#             run_line = run_fp.readline()
+#             run_line = run_fp.readline()
+#             run_line = run_fp.readline() #first two lines are junk, so start with second line
+
+
+
 
 if __name__=="__main__":
     # create pickled lists of genre labels as strings and indices based on the events.tsv files from opengenre dataset

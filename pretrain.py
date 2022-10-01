@@ -14,12 +14,17 @@ import sys
 import os
 import datetime
 
+debug=1
 val_flag=1
-random.seed(3)
+seed=3
+random.seed(seed)
+torch.manual_seed(seed)
+np.random.seed(seed)
 mask_variation=True
 valid_accuracy=True
-bintask_weight = 0.7
-multitask_weight = 0.3 #if we're just averaging then these two weights would both be 0.5
+bintask_weight = 0.5
+multitask_weight = 1-bintask_weight
+LR_def=0.0001 #defaults, should normally be set by command line
 
 if __name__ == "__main__":
     with torch.autograd.set_detect_anomaly(True):
@@ -45,6 +50,22 @@ if __name__ == "__main__":
             thiscount=None
             held_start=None
             held_range=None
+        if "-LR" in opts:
+            LR = args[-3]
+            if LR=="default":
+                LR = LR_def #default value if nothing is passed by command line
+            LR = float(LR)
+
+        if "-binweight" in opts:
+            bintask_weight= args[-4]
+            if bintask_weight=="default":
+                bintask_weight=1
+            else:
+                bintask_weight=float(bintask_weight)
+            multitask_weight = 1 - bintask_weight  # if we're just averaging then these two weights would both be 0.5
+
+            #current format for command line args is binweight LR count message, counting backward because fuck
+            #need a better system for this, probably should just stop letting these parameters be optional
         today = datetime.date.today()
         now = datetime.datetime.now()
         ##############################  SET PARAMETERS  ##############################
@@ -62,7 +83,7 @@ if __name__ == "__main__":
             "CLS_flag" : 1,
             "BATCH_SIZE" : 1,
             "EPOCHS" : EPOCHS,
-            "LEARNING_RATE" : 0.001,
+            "LEARNING_RATE" : LR, #set at top of this file or by command line argument
             #Have to manually set the name of the folder whose training data you want to use, since there will be many
             "data_dir" : "2022-06-12",
             #Manually set the hemisphere and iteration number of the dataset you want to use in that folder
@@ -77,6 +98,12 @@ if __name__ == "__main__":
             "held_start":held_start, #first 600 indices of refsamples are from testruns
             "held_range":held_range
         }
+
+        if(debug):
+            print("LR is "+str(hp_dict["LEARNING_RATE"]))
+            print("bintaskweight is "+str(bintask_weight))
+            print("multitaskweight is "+str(multitask_weight))
+
         hp_dict["data_path"] = opengenre_preproc_path + "training_data/" + hp_dict["data_dir"] + "/"
         torch.set_default_dtype(torch.float32)
 
@@ -154,18 +181,18 @@ if __name__ == "__main__":
 
         train_loader = DataLoader(dataset=all_data, batch_size=hp_dict["BATCH_SIZE"], shuffle=True) #make the DataLoader object
         if val_X is not None:
-            val_loader = DataLoader(dataset=val_data, batch_size=hp_dict["BATCH_SIZE"], shuffle=True)
+            val_loader = DataLoader(dataset=val_data, batch_size=hp_dict["BATCH_SIZE"], shuffle=False)
         log.write("voxel dim is "+str(voxel_dim)+"\n\n")
         MSK_token = [0, 1] + ([0] * (voxel_dim - 2))  # second dimension is reserved for msk_token flag
         MSK_token = np.array(MSK_token)
         MSK_token = torch.from_numpy(MSK_token)
 
-        same_genre_labels = 2 #two possible labels for same genre task, yes or no
+        binary_task_labels = 2 #two possible labels for same genre task, yes or no
         num_genres = 10 #from the training set
 
         src_pad_sequence = [0]*voxel_dim
 
-        model = Transformer(next_sequence_labels=same_genre_labels, num_genres=num_genres, src_pad_sequence=src_pad_sequence, max_length=max_length, voxel_dim=voxel_dim, ref_samples=ref_samples, mask_task=hp_dict["mask_task"]).to(hp_dict["device"])
+        model = Transformer(next_sequence_labels=binary_task_labels, num_genres=num_genres, src_pad_sequence=src_pad_sequence, max_length=max_length, voxel_dim=voxel_dim, ref_samples=ref_samples, mask_task=hp_dict["mask_task"]).to(hp_dict["device"])
         model = model.float()
         model.to(hp_dict["device"])
 
@@ -179,6 +206,16 @@ if __name__ == "__main__":
         optimizer = optim.Adam(model.parameters(), lr=hp_dict["LEARNING_RATE"], betas=(0.9,0.999), weight_decay=0.0001)
 
         for e in range(1, hp_dict["EPOCHS"]+1):
+            epoch_val_masks=[]
+            #0'th index is the number of times the model was correct when the ground truth was 0, and when ground truth was 1
+            bin_correct_train = [0,0]
+            bin_correct_val = [0,0]
+            bin_neg_count_train = 0 #count the number of training samples where 0 was the correct answer
+            bin_neg_count_val = 0 #count the number of validation samples where 0 was the correct answer
+
+            random.seed(seed+e)
+            torch.manual_seed(seed+e)
+            np.random.seed(seed+e)
             model.train()  # sets model status, doesn't actually start training
                 #need the above every epoch because the validation part below sets model.eval()
             epoch_loss = 0
@@ -201,6 +238,7 @@ if __name__ == "__main__":
                     ytrue_dist_multi2 = np.zeros((10,))  # only used when this sample gets two masks/replacements
                     #no return value from apply_masks, everything is updated by reference in the lists
                     apply_masks(X_batch[x], y_batch[x], ref_samples, hp_dict, mask_variation, ytrue_multi_batch, sample_dists, ytrue_dist_multi1, ytrue_dist_multi2, batch_mask_indices, sample_mask_indices, mask_task=hp_dict["mask_task"], log=log, heldout=False)
+
                 for y in range(0,hp_dict["BATCH_SIZE"]):
                     if(y_batch[y][0]):
                         ytrue_dist_bin = [0,1] #true, they are the same genre
@@ -225,6 +263,15 @@ if __name__ == "__main__":
 
                 #returns predictions for binary class and multiclass, in that order
                 ypred_bin_batch,ypred_multi_batch = model(X_batch, batch_mask_indices)
+                for batch_idx, bin_pred in enumerate(ypred_bin_batch): #for each 2 dimensional output vector for the binary task
+                    bin_true=ytrue_bin_batch[batch_idx]
+                    true_idx=torch.argmax(bin_true)
+                    pred_idx=torch.argmax(bin_pred)
+                    if(true_idx==pred_idx):
+                        bin_correct_train[true_idx]+=1 #either 0 or 1 was the correct choice, so count it
+                    if(true_idx==0):
+                        bin_neg_count_train+=1
+
                 ypred_bin_batch = ypred_bin_batch.float()
                 ypred_multi_batch = ypred_multi_batch.float()
                 log.write("ypred_multi_batch has shape "+str(ypred_multi_batch.shape)+"\n and ytrue_multi_batch has shape "+str(ytrue_multi_batch.shape))
@@ -276,6 +323,10 @@ if __name__ == "__main__":
 
             # now calculate validation loss/acc, turn off gradient
             if val_X is not None:
+                model.eval()
+                random.seed(seed)
+                torch.manual_seed(seed)
+                np.random.seed(seed)
                 with torch.no_grad():
                     val_loss=0
                     val_acc=0
@@ -296,7 +347,10 @@ if __name__ == "__main__":
                             ytrue_dist_multi2_val = np.zeros(
                                 (10,))  # only used when this sample gets two masks/replacements
                             # no return value from apply_masks, everything is updated by reference in the lists
-                            apply_masks(X_batch_val[x], y_batch_val[x], ref_samples, hp_dict, mask_variation,   ytrue_multi_batch_val, sample_dists_val, ytrue_dist_multi1_val, ytrue_dist_multi2_val, batch_mask_indices_val, sample_mask_indices_val, mask_task=hp_dict["mask_task"], log=log, heldout=False)
+                            apply_masks(X_batch_val[x], y_batch_val[x], ref_samples, hp_dict, mask_variation,   ytrue_multi_batch_val, sample_dists_val, ytrue_dist_multi1_val, ytrue_dist_multi2_val, batch_mask_indices_val, sample_mask_indices_val, mask_task=hp_dict["mask_task"], log=log, heldout=True)
+
+                        epoch_val_masks.append(batch_mask_indices_val)
+
                         for y in range(0, hp_dict["BATCH_SIZE"]):
                             if (y_batch_val[y][0]):
                                 ytrue_dist_bin_val = [0, 1]  # true, they are the same genre
@@ -310,14 +364,27 @@ if __name__ == "__main__":
                         ytrue_multi_batch_val = np.array(ytrue_multi_batch_val)
                         ytrue_bin_batch_val = torch.from_numpy(ytrue_bin_batch_val).float()
                         ytrue_multi_batch_val = torch.from_numpy(ytrue_multi_batch_val).float()
-
+                        epoch_val_masks.append(batch_mask_indices_val)
                         # returns predictions for binary class and multiclass, in that order
                         ypred_bin_batch_val, ypred_multi_batch_val = model(X_batch_val, batch_mask_indices_val)
+
+                        #get accuracy stats for validation samples
+                        for batch_idx, bin_pred in enumerate(
+                                ypred_bin_batch_val):  # for each 2 dimensional output vector for the binary task
+                            bin_true = ytrue_bin_batch_val[batch_idx]
+                            true_idx = torch.argmax(bin_true)
+                            pred_idx = torch.argmax(bin_pred)
+                            if (true_idx == pred_idx):
+                                bin_correct_val[true_idx] += 1  # either 0 or 1 was the correct choice, so count it
+                            if (true_idx == 0):
+                                bin_neg_count_val += 1
+
+
                         ypred_bin_batch_val = ypred_bin_batch_val.float()
                         ypred_multi_batch_val = ypred_multi_batch_val.float()
-                        log.write("ypred_multi_batch_val has shape " + str(
-                            ypred_multi_batch_val.shape) + "\n and ytrue_multi_batch_val has shape " + str(
-                            ytrue_multi_batch_val.shape))
+                        # log.write("ypred_multi_batch_val has shape " + str(
+                        #     ypred_multi_batch_val.shape) + "\n and ytrue_multi_batch_val has shape " + str(
+                        #     ytrue_multi_batch_val.shape))
                         # log.write("For binary classification, predictions are "+str(ypred_bin_batch)+" and true labels are "+str(ytrue_bin_batch)+"\n")
                         loss_bin_val = criterion_bin(ypred_bin_batch_val, ytrue_bin_batch_val)
                         # log.write("The loss in that case was "+str(loss_bin)+"\n")
@@ -351,9 +418,11 @@ if __name__ == "__main__":
                                 val_acc += acc.item()
                                 val_acc2 += 0
 
-
             print(f'Epoch {e+0:03}: | Loss: {epoch_loss/len(train_loader):.5f} | Acc: {epoch_acc/len(train_loader):.3f} | Acc2: {epoch_acc2/len(train_loader):.3f}')
-
+            print("Epoch bin training stats:\n")
+            print("correct counts for this epoch: "+str(bin_correct_train))
+            print("bin neg sample count: "+str(bin_neg_count_train))
+            print("number of samples: "+str(len(train_loader)))
 
             log.write(f'Epoch {e+0:03}: | Loss: {epoch_loss/len(train_loader):.5f} | Acc: {epoch_acc/len(train_loader):.3f} | Acc2: {epoch_acc2/len(train_loader):.3f}')
             if(hp_dict["task"]=="both"):
@@ -366,6 +435,12 @@ if __name__ == "__main__":
                 if(hp_dict["task"]=="both"):
                     print("Bin val loss was " + str(loss_bin_val) + " and multi val loss was " + str(loss_multi_val))
                     log.write("Bin loss was " + str(loss_bin_val) + " and multi loss was " + str(loss_multi_val))
+                print("Epoch bin val stats:\n")
+                print("correct counts for this epoch: " + str(bin_correct_val))
+                print("bin neg sample count: " + str(bin_neg_count_val))
+                print("number of samples: " + str(len(val_loader)))
+                print("epoch val masks:" + str(epoch_val_masks) + "\n\n")
+
                 # if not valid_accuracy:
                 #     print("Accuracy is invalid.")
                 #     log.write("Accuracy is invalid.")
@@ -375,14 +450,14 @@ if __name__ == "__main__":
 
 
         modelcount=0
-        model_path = hp_dict["data_path"]+"trained_models/"+str(hp_dict["task"])+"_states_"+str(thiscount)+str(modelcount)+".pt"
+        model_path = opengenre_preproc_path+"trained_models/"+str(hp_dict["task"])+"/sep26/"+"states_"+str(thiscount)+str(modelcount)+".pt"
         while(os.path.exists(model_path)):
             modelcount+=1
-            model_path = hp_dict["data_path"]+"trained_models/" + str(hp_dict["task"]) + "_states_" + str(thiscount) + str(
-                modelcount) + ".pt"
+            model_path = opengenre_preproc_path+"trained_models/"+str(hp_dict["task"])+"/sep26/"+"states_"+str(thiscount)+str(modelcount)+".pt"
 
         torch.save(model.state_dict(),model_path)
-        model_path = hp_dict["data_path"]+"trained_models/"+str(hp_dict["task"])+"_full_"+str(thiscount)+str(modelcount)+".pt"
+        model_path = opengenre_preproc_path + "trained_models/" + str(hp_dict["task"]) + "/sep26/" + "full_" + str(thiscount) + str(
+            modelcount) + ".pt"
         torch.save(model,model_path)
 
     log.close()

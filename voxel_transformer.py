@@ -208,7 +208,7 @@ class Transformer(nn.Module):
             num_layers=2,
             forward_expansion=4,
             heads=ATTENTION_HEADS,
-            dropout=0.1,
+            dropout=0,
             #device="cuda",
             device="cpu",
             max_length=None,

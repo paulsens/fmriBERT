@@ -1,6 +1,21 @@
 .DS_Store
 /Users/sean/Desktop/current_research/fmriBERTfix/fmriBERT/pitchclass/
-/Users/sean/Desktop/current_research/fmriBERTfix/fmriBERT/pitchclass/*
+/Users/sean/Desktop/current_research/fmriBERTfix/fmriBERT/pitchclass/**
 /Users/sean/Desktop/current_research/fmriBERTfix/fmriBERT/pretrain_logs/
-/Users/sean/Desktop/current_research/fmriBERTfix/fmriBERT/pretrain_logs/*
+/Users/sean/Desktop/current_research/fmriBERTfix/fmriBERT/pretrain_logs/**
+/Users/sean/Desktop/current_research/fmriBERTfix/fmriBERT/A00*
+/Users/sean/Desktop/current_research/fmriBERTfix/fmriBERT/targets/*
+/Users/sean/Desktop/current_research/fmriBERTfix/fmriBERT/targets/
+/Users/sean/Desktop/current_research/fmriBERTfix/fmriBERT/trained_models/**
+/Users/sean/Desktop/current_research/fmriBERTfix/fmriBERT/trained_models/
+/Users/sean/Desktop/current_research/fmriBERTfix/fmriBERT/hpsearch1/*
+/Users/sean/Desktop/current_research/fmriBERTfix/fmriBERT/hpsearch1/
+/Users/sean/Desktop/current_research/fmriBERTfix/fmriBERT/hpsearch2/*
+/Users/sean/Desktop/current_research/fmriBERTfix/fmriBERT/hpsearch2/
+/Users/sean/Desktop/current_research/fmriBERTfix/fmriBERT/crossval_ofiles/**
+/Users/sean/Desktop/current_research/fmriBERTfix/fmriBERT/crossval_ofiles/
+/Users/sean/Desktop/current_research/fmriBERTfix/fmriBERT/may20backup/**
+/Users/sean/Desktop/current_research/fmriBERTfix/fmriBERT/may20backup/
+
+
 
