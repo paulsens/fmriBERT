@@ -294,11 +294,11 @@ if __name__ == "__main__":
                     acc = get_accuracy(ypred_bin_batch, ytrue_bin_batch, hp_dict["binary"], log)
                 elif hp_dict["task"] == "multionly":
                     loss = loss_multi
-                    print_choice=random.randint(0,100)
-                    if(print_choice>98):
-                        print("batch loss is "+str(loss))
-                        print("ypred is "+str(ypred_multi_batch))
-                        print("ytrue is "+str(ytrue_multi_batch))
+                    # print_choice=random.randint(0,100)
+                    # if(print_choice>98):
+                    #     print("batch loss is "+str(loss))
+                    #     print("ypred is "+str(ypred_multi_batch))
+                    #     print("ytrue is "+str(ytrue_multi_batch))
                     acc = get_accuracy(ypred_multi_batch, ytrue_multi_batch, hp_dict["mask_task"], log)
 
                     # if(get_multi_acc):
