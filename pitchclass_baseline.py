@@ -3,7 +3,7 @@ import os
 import sys
 import audimg as A
 from Constants import *
-from helpers import make_pitchclass_code_dict, make_sub_info_dict, make_sub_5gram_dict
+from helpers import make_pitchclass_code_dict, make_sub_info_dict, make_sub_5gram_info
 
 ###### parameters and paths
 debug=1

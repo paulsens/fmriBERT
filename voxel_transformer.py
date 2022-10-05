@@ -3,6 +3,7 @@ import torch.nn as nn
 from random import randint
 import numpy as np
 from Constants import ATTENTION_HEADS, env, EPOCHS
+print_intermediate=True
 
 class SelfAttention(nn.Module):
     def __init__(self, voxel_dim, heads):
@@ -41,7 +42,7 @@ class SelfAttention(nn.Module):
         new_queries = queries.clone()
 
         #Messy looking loop but wouldn't work with python-ese attempts
-        if env == "discovery":
+        if True:
             for batch_idx in range(0,N):
                 for element in range(0,value_len):
                     for i in range(0, self.heads):
@@ -83,19 +84,29 @@ class TransformerBlock(nn.Module):
         self.attention = SelfAttention(voxel_dim, heads)
         self.norm1 = nn.LayerNorm(voxel_dim)
         self.norm2 = nn.LayerNorm(voxel_dim)
-
         self.feed_forward = nn.Sequential(
             nn.Linear(voxel_dim, forward_expansion * voxel_dim),
             nn.ReLU(),
             nn.Linear(forward_expansion * voxel_dim, voxel_dim)
         )
         self.dropout = nn.Dropout(dropout)
-    def forward(self, value, key, query, mask):
+    def forward(self, value, key, query, mask, block_print_flag=0):
         attention = self.attention(value, key, query, mask)
-
+        if(block_print_flag):
+            print("value is "+str(value))
+            print("key is "+str(key))
+            print("query is "+str(query))
+            print("mask is "+str(mask))
         x = self.dropout(self.norm1(attention + query))
         forward = self.feed_forward(x)
         out = self.dropout(self.norm2(forward + x))
+        if(block_print_flag):
+            print("in block's forward:\n")
+            print("value is "+str(value))
+            print("attention is "+str(attention))
+            print("x  is "+str(x))
+            print("forward is "+str(forward))
+            print("out is "+str(out))
         return out
 
 class Encoder(nn.Module):
@@ -107,12 +118,11 @@ class Encoder(nn.Module):
                  forward_expansion,
                  dropout,
                  max_length,
-                 ):
+                    ):
         super(Encoder,self).__init__()
         self.voxel_dim = voxel_dim
         self.device = device
         self.position_embedding = nn.Embedding(max_length, voxel_dim)
-
         self.layers = nn.ModuleList(
             [
                 TransformerBlock(
@@ -125,19 +135,26 @@ class Encoder(nn.Module):
         )
         self.dropout = nn.Dropout(dropout)
 
-    def forward(self, x, mask):
+    def forward(self, x, mask, encoder_print_flag):
         N, seq_length, voxel_dim = x.shape
         #print("seq_length is "+str(seq_length))
         positions = torch.arange(0, seq_length).expand(N, seq_length).to(self.device)
         #print("positions is "+str(positions))
+
         embedded_positions = self.position_embedding(positions)
+
         #print("embedded_positions is "+str(embedded_positions))
         #print("x has shape "+str(x.shape))
         out = self.dropout(x + embedded_positions)
+        if(encoder_print_flag):
+            print("In Encoder's forward, x is "+str(x))
+            print("positions is "+str(positions))
+            print("embedded positions is "+str(embedded_positions))
 
         for layer in self.layers:
-            out = layer(out, out, out, mask)
-
+            out = layer(out, out, out, mask, encoder_print_flag)
+            if(encoder_print_flag):
+                print("out for layer "+str(layer)+" is "+str(out))
         return out
 
 class DecoderBlock(nn.Module):
@@ -208,14 +225,16 @@ class Transformer(nn.Module):
             num_layers=2,
             forward_expansion=4,
             heads=ATTENTION_HEADS,
-            dropout=0,
+            dropout=0.1,
             #device="cuda",
             device="cpu",
             max_length=None,
             ref_samples=None,
-            mask_task=None
+            mask_task=None,
+            print_flag=0
     ):
         self.mask_task=mask_task
+        self.print_flag=print_flag
         super(Transformer, self).__init__()
 
         self.encoder = Encoder(
@@ -225,7 +244,7 @@ class Transformer(nn.Module):
             device,
             forward_expansion,
             dropout,
-            max_length
+            max_length,
         )
 
         self.decoder = Decoder(
@@ -294,9 +313,11 @@ class Transformer(nn.Module):
     #     return trg_mask.to(self.device)
 
     def forward(self, src, mask_indices):
+        if(self.print_flag):
+            print("src is "+str(src)+" and mask indices is "+str(mask_indices))
         src_mask = self.make_src_mask(src)
         #trg_mask = None
-        enc_src = self.encoder(src, src_mask)
+        enc_src = self.encoder(src, src_mask, self.print_flag)
         #out = self.decoder(trg, enc_src, src_mask, trg_mask)
         #print("enc_src has shape "+str(enc_src.shape))
         batch_CLS_tokens = enc_src[:,0,:] #slice out the first element of each transformed sequence (the final form of CLS token)
@@ -317,7 +338,10 @@ class Transformer(nn.Module):
                 batch_MSK_tokens.append(temp)
 
         batch_MSK_tokens = torch.stack(batch_MSK_tokens) #create pytorch tensor of the tensors in the list
-
+        if(self.print_flag):
+            print("output of encoder stacks is "+str(enc_src))
+            print("batch CLS tokens are "+str(batch_CLS_tokens))
+            print("batch MSK tokens are "+str(batch_MSK_tokens))
         #print("batch MSK tokens has shape "+str(batch_MSK_tokens.shape))  #should be batchsize by voxel_dim
 
 

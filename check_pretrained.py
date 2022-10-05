@@ -1,3 +1,14 @@
+# mostly a copy of pretrain.py with adjustments for pure evaluation
+# index of saved from from 0 to 11 inclusive
+index = 5
+# task is either binaryonly, multionly, or both
+evaltask = "binaryonly"
+basepath = "/Volumes/External/opengenre/saveloadtest/2/"
+state_path = "/Volumes/External/opengenre/preproc/trained_models/"+str(evaltask)+"/sep26/"
+state_file = state_path+"states_"+str(index)+"0.pt"
+#model_file = "/isi/music/auditoryimagery2/seanthesis/opengenre/preproc/trained_models/binaryonly/oct1/full_52.pt"
+model_file = "/Volumes/External/opengenre/preproc/trained_models/binaryonly/oct1/states_50.pt"
+
 import torch
 import torch.nn as nn
 import random
@@ -13,6 +24,7 @@ from Constants import *
 import sys
 import os
 import datetime
+#torch.use_deterministic_algorithms(True)
 
 debug=1
 val_flag=1
@@ -27,7 +39,7 @@ multitask_weight = 1-bintask_weight
 LR_def=0.0001 #defaults, should normally be set by command line
 printed_count=0
 val_printed_count=0
-#torch.use_deterministic_algorithms(True)
+
 if __name__ == "__main__":
     with torch.autograd.set_detect_anomaly(True):
         thiscount=None #gets changed if a count is passed as a command line argument
@@ -44,22 +56,24 @@ if __name__ == "__main__":
             device = torch.device("cuda:"+str(gpunum))
         else:
             device="cpu"
-        if "-count" in opts:
-            thiscount=int(args[-2])
+        #if "-count" in opts:
+        if True:
+            thiscount=index
             held_start=(600 + (400 * thiscount))
             held_range=range(held_start, held_start+400)
-        else:
-            thiscount=None
-            held_start=None
-            held_range=None
-        if "-LR" in opts:
-            LR = args[-3]
+        #else:
+            # thiscount=None
+            # held_start=None
+            # held_range=None
+        #if "-LR" in opts:
+            #LR = args[-3]
+            LR = 0.0001
             if LR=="default":
                 LR = LR_def #default value if nothing is passed by command line
             LR = float(LR)
 
-        if "-binweight" in opts:
-            bintask_weight= args[-4]
+        #if "-binweight" in opts:
+            bintask_weight= 0.1
             if bintask_weight=="default":
                 bintask_weight=1
             else:
@@ -117,10 +131,14 @@ if __name__ == "__main__":
             logcount=thiscount
         else:
             logcount=0
-        logfile = today_dir + "pretrainlog_"+str(logcount)+".txt"
+        #logfile = today_dir + "pretrainlog_"+str(logcount)+".txt"
+        logfile = basepath + "pretrainlog_"+str(logcount)+".txt"
+
         while (os.path.exists(logfile)):
             logcount+=1
-            logfile = today_dir + "pretrainlog_" + str(logcount) + ".txt"
+            #logfile = today_dir + "pretrainlog_" + str(logcount) + ".txt"
+            logfile = basepath + "pretrainlog_" + str(logcount) + ".txt"
+
         log = open(logfile,"w")
         log.write(str(now)+"\n")
         # run_desc is potentially given in command line call
@@ -194,9 +212,11 @@ if __name__ == "__main__":
 
         src_pad_sequence = [0]*voxel_dim
 
-        model = Transformer(next_sequence_labels=binary_task_labels, num_genres=num_genres, src_pad_sequence=src_pad_sequence, max_length=max_length, voxel_dim=voxel_dim, ref_samples=ref_samples, mask_task=hp_dict["mask_task"], print_flag=0).to(hp_dict["device"])
+        model = Transformer(next_sequence_labels=binary_task_labels, num_genres=num_genres, src_pad_sequence=src_pad_sequence, max_length=max_length, voxel_dim=voxel_dim, ref_samples=ref_samples, mask_task=hp_dict["mask_task"]).to(hp_dict["device"])
+        model.load_state_dict(torch.load(model_file))
         model = model.float()
-        model.to(hp_dict["device"])
+        #model.to(hp_dict["device"])
+        model.print_flag = 0
 
         criterion_bin = nn.CrossEntropyLoss()
         if hp_dict["mask_task"]=="genre_decode":
@@ -218,7 +238,7 @@ if __name__ == "__main__":
             random.seed(seed+e)
             torch.manual_seed(seed+e)
             np.random.seed(seed+e)
-            model.train()  # sets model status, doesn't actually start training
+            model.eval()  # sets model status, doesn't actually start training
                 #need the above every epoch because the validation part below sets model.eval()
             epoch_loss = 0
             epoch_acc = 0
@@ -283,12 +303,13 @@ if __name__ == "__main__":
                 #log.write("For genre classification, predictions are "+str(ypred_multi_batch)+" and true labels are "+str(ytrue_multi_batch)+"\n")
                 loss_multi = criterion_multi(ypred_multi_batch, ytrue_multi_batch)
                 #log.write("The loss in that case was "+str(loss_multi)+"\n\n")
-                # if printed_count < 1:
-                #     print("sample "+str(printed_count)+": "+str(X_batch)+"\n\n")
-                #     print("ypred "+str(printed_count)+": "+str(ypred_bin_batch)+"\n\n")
-                #     print("ytrue "+str(printed_count)+": "+str(ytrue_bin_batch)+"\n\n")
-                #     printed_count+=1
-                #     model.print_flag=0
+                if printed_count < 1:
+                    print("sample "+str(printed_count)+": "+str(X_batch)+"\n\n")
+                    print("ypred "+str(printed_count)+": "+str(ypred_bin_batch)+"\n\n")
+                    print("ytrue "+str(printed_count)+": "+str(ytrue_bin_batch)+"\n\n")
+                    printed_count+=1
+                    model.print_flag=0
+
                 if hp_dict["task"] == "binaryonly":
                     loss = loss_bin #toy example for just same-genre task
                     acc = get_accuracy(ypred_bin_batch, ytrue_bin_batch, hp_dict["binary"], log)
@@ -311,8 +332,8 @@ if __name__ == "__main__":
                     acc2 = get_accuracy(ypred_multi_batch, ytrue_multi_batch, hp_dict["mask_task"], log)
                 #log.write("The total loss this iteration was "+str(loss)+"\n\n")
 
-                loss.backward()
-                optimizer.step()
+                #loss.backward()
+                #optimizer.step()
 
                 epoch_loss += loss.item()
                 #the word valid here does not refer to validation, but rather is this task something we can obtain a valid accuracy for
@@ -323,6 +344,8 @@ if __name__ == "__main__":
                     else:
                         epoch_acc += acc.item()
                         epoch_acc2 += 0
+                # use this break if you only want one sample from the training data
+                break
                 # if not valid_accuracy:
                 #     print("Accuracy is invalid.")
                 #     log.write("Accuracy is invalid.")
@@ -333,9 +356,11 @@ if __name__ == "__main__":
             # for name, param in model.named_parameters():
             #     if param.requires_grad:
             #         print(name,param.data)
+
             if val_X is not None:
                 model.eval()
-                #model.print_flag=1
+                model.print_flag=1
+
                 random.seed(seed)
                 torch.manual_seed(seed)
                 np.random.seed(seed)
@@ -429,12 +454,13 @@ if __name__ == "__main__":
                             else:
                                 val_acc += acc.item()
                                 val_acc2 += 0
-                        # if val_printed_count < 1:
-                        #     print("val sample " + str(val_printed_count) + ": " + str(X_batch_val) + "\n\n")
-                        #     print("val ypred " + str(val_printed_count) + ": " + str(ypred_bin_batch_val) + "\n\n")
-                        #     print("val ytrue " + str(val_printed_count) + ": " + str(ytrue_bin_batch_val) + "\n\n")
-                        #     val_printed_count+=1
-                        #     model.print_flag=0
+                        if val_printed_count < 1:
+                            print("val sample " + str(val_printed_count) + ": " + str(X_batch_val) + "\n\n")
+                            print("val ypred " + str(val_printed_count) + ": " + str(ypred_bin_batch_val) + "\n\n")
+                            print("val ytrue " + str(val_printed_count) + ": " + str(ytrue_bin_batch_val) + "\n\n")
+                            val_printed_count += 1
+                            model.print_flag = 0
+
             print(f'Epoch {e+0:03}: | Loss: {epoch_loss/len(train_loader):.5f} | Acc: {epoch_acc/len(train_loader):.3f} | Acc2: {epoch_acc2/len(train_loader):.3f}')
             print("Epoch bin training stats:\n")
             print("correct counts for this epoch: "+str(bin_correct_train))
@@ -469,15 +495,16 @@ if __name__ == "__main__":
         # for name, param in model.named_parameters():
         #     if param.requires_grad:
         #         print(name, param.data)
-        modelcount=0
-        model_path = opengenre_preproc_path+"trained_models/"+str(hp_dict["task"])+"/oct5/"+"states_"+str(thiscount)+str(modelcount)+".pt"
-        while(os.path.exists(model_path)):
-            modelcount+=1
-            model_path = opengenre_preproc_path+"trained_models/"+str(hp_dict["task"])+"/oct5/"+"states_"+str(thiscount)+str(modelcount)+".pt"
-
-        torch.save(model.state_dict(),model_path)
-        model_path = opengenre_preproc_path + "trained_models/" + str(hp_dict["task"]) + "/oct5/" + "full_" + str(thiscount) + str(
-            modelcount) + ".pt"
-        torch.save(model,model_path)
+        # modelcount=0
+        # model_path = opengenre_preproc_path+"trained_models/"+str(hp_dict["task"])+"/oct1/"+"states_"+str(thiscount)+str(modelcount)+".pt"
+        # while(os.path.exists(model_path)):
+        #     modelcount+=1
+        #     model_path = opengenre_preproc_path+"trained_models/"+str(hp_dict["task"])+"/oct1/"+"states_"+str(thiscount)+str(modelcount)+".pt"
+        #
+        # torch.save(model.state_dict(),model_path)
+        # model_path = opengenre_preproc_path + "trained_models/" + str(hp_dict["task"]) + "/oct1/" + "full_" + str(thiscount) + str(
+        #     modelcount) + ".pt"
+        # torch.save(model,model_path)
 
     log.close()
+

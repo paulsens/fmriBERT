@@ -524,31 +524,31 @@ def make_sub_info_dict(targets_dir, info_dict):
             info_dict[sid]=(idx, accession, majorkey)
             line=csv_fp.readline()
 
-# def make_sub_5gram_dict(targets_dir, code_dict, sub_info_dict, sub_5gram_dict):
-#     sublist=sub_info_dict.keys()
-#     lloyd_path = targets_dir + "Formatted_Key_Logs/" #logs containing
-#
-#     for sub in sublist:
-#         sub_info = sub_info_dict[sub]
-#         idx=str(sub_info[0])
-#         if int(idx)>25: #format of these files changes for idx >= 26
-#
-#         accession=str(sub_info[1])
-#         majorkey=str(sub_info[2])
-#         counter=0 #counts from 0 to 1863 inclusive (counts all TRs)
-#         subcounter=0 #counts from 0 to 232 inclusive then resets (counts TRs within each run)
-#         runcounter=0 #counts from 0 to 7 inclusive then resets
-#
-#         for run in range(0,8):
-#             lloyd_fp = open(lloyd_path+"FLog_"+idx+"_run_"+str(run)+".csv", "r") #for example, FLog_20_run_0.csv
-#                                                                                 #numbered 0 to 7
-#             lloyd_line = lloyd_fp.readline()
-#             lloyd_line = lloyd_fp.readline() #first line is junk, so start with second line
-#             run_fp = open(targets_dir+accession+"_run-0"+str(run+1)+".txt", "r") #for example, A002636_run-01.txt
-#                                                                                 #numbered 01 to 08
-#             run_line = run_fp.readline()
-#             run_line = run_fp.readline()
-#             run_line = run_fp.readline() #first two lines are junk, so start with second line
+def make_sub_5gram_dict(targets_dir, code_dict, sub_info_dict, sub_5gram_dict):
+    sublist=sub_info_dict.keys()
+    lloyd_path = targets_dir + "Formatted_Key_Logs/" #logs containing
+
+    for sub in sublist:
+        sub_info = sub_info_dict[sub]
+        idx=str(sub_info[0])
+        if int(idx)>25: #format of these files changes for idx >= 26
+
+        accession=str(sub_info[1])
+        majorkey=str(sub_info[2])
+        counter=0 #counts from 0 to 1863 inclusive (counts all TRs)
+        subcounter=0 #counts from 0 to 232 inclusive then resets (counts TRs within each run)
+        runcounter=0 #counts from 0 to 7 inclusive then resets
+
+        for run in range(0,8):
+            lloyd_fp = open(lloyd_path+"FLog_"+idx+"_run_"+str(run)+".csv", "r") #for example, FLog_20_run_0.csv
+                                                                                #numbered 0 to 7
+            lloyd_line = lloyd_fp.readline()
+            lloyd_line = lloyd_fp.readline() #first line is junk, so start with second line
+            run_fp = open(targets_dir+accession+"_run-0"+str(run+1)+".txt", "r") #for example, A002636_run-01.txt
+                                                                                #numbered 01 to 08
+            run_line = run_fp.readline()
+            run_line = run_fp.readline()
+            run_line = run_fp.readline() #first two lines are junk, so start with second line
 
 
 

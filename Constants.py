@@ -92,8 +92,8 @@ val_split = 0.1
 OPENGENRE_TRSPERRUN = 400
 
 if env == "local":
-    ATTENTION_HEADS = 2
-    EPOCHS = 2
+    ATTENTION_HEADS = 6
+    EPOCHS = 1
 elif env == "discovery":
     ATTENTION_HEADS = 6
     EPOCHS = 10
