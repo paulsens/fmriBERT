@@ -27,7 +27,7 @@ class SelfAttention(nn.Module):
 
         self.fc_out = nn.Linear(self.heads * self.head_dim, voxel_dim)
 
-    def forward(self, values, keys, query, mask):
+    def forward(self, values, keys, query, mask, sa_print_flag=0):
         N = query.shape[0]
         value_len, key_len, query_len = values.shape[1], keys.shape[1], query.shape[1]
 
@@ -57,6 +57,13 @@ class SelfAttention(nn.Module):
                         new_queries[batch_idx][element][i] = self.queries_heads[i](queries[batch_idx][element][i])
 
         energy = torch.einsum("nqhd,nkhd->nhqk", [new_queries,new_keys])
+
+        if(sa_print_flag):
+            #print("new queries is "+str(new_queries)+" and has shape "+str(new_queries.shape))
+            #print("new keys is "+str(new_keys)+" and has shape "+str(new_keys.shape))
+            print("new values is "+str(new_values)+" and has shape "+str(new_values.shape))
+            print("energy is "+str(energy))
+            print("in SA mask is "+str(mask))
         # queries shape: (N, query_len, heads, heads_dim)
         # keys shape: (N, key_len, heads, heads_dim)
         # energy shape: (N, heads, query_len, key_len)
@@ -64,17 +71,26 @@ class SelfAttention(nn.Module):
         if mask is not None:
             #print("energy has shape "+str(energy.shape))
             #print("mask has shape "+str(mask.shape))
-            energy = energy.masked_fill(mask == 0, float("-1e20"))
+            energy = energy.masked_fill(mask == 1, float("-1e20"))
+        if(sa_print_flag):
+            print("after filling, energy is "+str(energy))
+        temp = energy / (self.voxel_dim ** (1 / 2))
+        if(sa_print_flag):
+            print("temp is "+str(temp))
+        attention = torch.softmax(temp, dim=3)
 
-        attention = torch.softmax(energy / (self.voxel_dim ** (1 / 2)), dim=3)
 
         out = torch.einsum("nhql,nlhd->nqhd",[attention, new_values]).reshape(
             N, query_len, self.heads*self.head_dim
         )
+
+
         # attention shape: (N, heads, query_len, key_len)
         # values shape: (N, value_len, heads, heads_dim)
         # out shape: (N, query_len, heads, head_dim) then flatten last two dimensions
-
+        if(sa_print_flag):
+            print("inside SA, attention is "+str(attention))
+            print("before SA fc layer, out is "+str(out))
         out = self.fc_out(out)
         return out
 
@@ -91,7 +107,7 @@ class TransformerBlock(nn.Module):
         )
         self.dropout = nn.Dropout(dropout)
     def forward(self, value, key, query, mask, block_print_flag=0):
-        attention = self.attention(value, key, query, mask)
+        attention = self.attention(value, key, query, mask, block_print_flag)
         if(block_print_flag):
             print("value is "+str(value))
             print("key is "+str(key))
@@ -104,6 +120,7 @@ class TransformerBlock(nn.Module):
             print("in block's forward:\n")
             print("value is "+str(value))
             print("attention is "+str(attention))
+            print("attention has shape "+str(attention.shape))
             print("x  is "+str(x))
             print("forward is "+str(forward))
             print("out is "+str(out))

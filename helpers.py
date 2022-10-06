@@ -491,9 +491,10 @@ def apply_masks(x, y, ref_samples, hp_dict, mask_variation, ytrue_multi_batch, s
 def make_pitchclass_code_dict(targets_dir, code_dict):
     start=False
     with open(targets_dir+"condition_labels.txt", "r") as labels_fp:
-        line = labels_fp.readline()
+        line = labels_fp.readline().strip()
         while line:
-            if line.strip()=="0 - rest state":
+            line = line.strip()
+            if line=="0 - rest state":
                 start=True
             if start:
                 temp=line.split(" - ")
@@ -522,33 +523,83 @@ def make_sub_info_dict(targets_dir, info_dict):
             majorkey=temp[3]
 
             info_dict[sid]=(idx, accession, majorkey)
-            line=csv_fp.readline()
+            line=csv_fp.readline().strip()
 
-# def make_sub_5gram_dict(targets_dir, code_dict, sub_info_dict, sub_5gram_dict):
-#     sublist=sub_info_dict.keys()
-#     lloyd_path = targets_dir + "Formatted_Key_Logs/" #logs containing
-#
-#     for sub in sublist:
-#         sub_info = sub_info_dict[sub]
-#         idx=str(sub_info[0])
-#         if int(idx)>25: #format of these files changes for idx >= 26
-#
-#         accession=str(sub_info[1])
-#         majorkey=str(sub_info[2])
-#         counter=0 #counts from 0 to 1863 inclusive (counts all TRs)
-#         subcounter=0 #counts from 0 to 232 inclusive then resets (counts TRs within each run)
-#         runcounter=0 #counts from 0 to 7 inclusive then resets
-#
-#         for run in range(0,8):
-#             lloyd_fp = open(lloyd_path+"FLog_"+idx+"_run_"+str(run)+".csv", "r") #for example, FLog_20_run_0.csv
-#                                                                                 #numbered 0 to 7
-#             lloyd_line = lloyd_fp.readline()
-#             lloyd_line = lloyd_fp.readline() #first line is junk, so start with second line
-#             run_fp = open(targets_dir+accession+"_run-0"+str(run+1)+".txt", "r") #for example, A002636_run-01.txt
-#                                                                                 #numbered 01 to 08
-#             run_line = run_fp.readline()
-#             run_line = run_fp.readline()
-#             run_line = run_fp.readline() #first two lines are junk, so start with second line
+
+# key: subid
+# value: [ all tuples for this subject of this form:
+# (idx, subid, accession, key, run_n, cycle_n, stimHorI, stimtimbre, stimnote, stimoctave, vividness,
+# "Probe", probetimbre, probenote, probeoctave, GoF) ]
+#    example of such a tuple:
+# ('42', 'sid001680', 'A003274', 'E', '1', '17', 'Heard', 'G#', '4', 4, 'Probe', 'Trumpet', 'B', '4', 4)#
+# list of cycles is in temporal order
+def make_sub_cycle_dict(targets_dir, code_dict, sub_info_dict, sub_cycle_dict):
+    sublist=sub_info_dict.keys()
+    lloyd_path = targets_dir + "Formatted_Key_Logs/" # lloyds logs, they are the only records of vividness and GoF ratings
+                                                    # other information is there too, but it's in an annoying format
+
+    for sub in sublist:
+        cycle_list = []
+        sub_info = sub_info_dict[sub]
+        idx=str(sub_info[0])
+
+        accession=str(sub_info[1])
+        majorkey=str(sub_info[2])
+
+        for run in range(0,8):
+            cycle_n = 0
+            lloyd_fp = open(lloyd_path+"FLog_"+idx+"_run_"+str(run)+".csv", "r") #for example, FLog_20_run_0.csv
+                                                                                #numbered 0 to 7
+            lloyd_line = lloyd_fp.readline()
+            lloyd_line = lloyd_fp.readline() #first line is junk, so start with second line
+            run_f = open(targets_dir+accession+"_run-0"+str(run+1)+".txt", "r") #for example, A002636_run-01.txt
+                                                                                #numbered 01 to 08
+            run_lines = run_f.readlines()
+            while lloyd_line: #loop through each cycle recorded in the lloyd file for this run
+                #find the stimulus in the run file
+                # note that run_lines is 0-indexed, but loading the text file in pycharm is 1-indexed and shows the first stimulus on lines 9 and 10, so this formula for stim_line is giving the second instance of the stimulus code in the text file, but that should give the same result as grabbing the first instance. just something to keep in mind
+                stim_line = run_lines[9+(11*cycle_n)]
+                stim_code = stim_line.strip()
+                stim_list = code_dict[stim_code].split(" ") # something like ["A#3", "Heard", "Clarinet"]
+                stim_note = stim_list[0][:-1] # something like A#3 becomes A# or C5 becomes C
+                stim_octave = stim_list[0][-1] # above example gets the 3 or the 5
+                stim_cond = stim_list[1] #Heard, Imagined
+                stim_timbre = stim_list[2]
+
+                # same for probe
+                probe_line = run_lines[11+(11*cycle_n)]
+                probe_code = probe_line.strip()
+                probe_list = code_dict[probe_code].split(" ") # something like ["A#3, "Probe", "Clarinet"]
+                probe_note = probe_list[0][:-1] # something like A#3 becomes A# or C5 becomes C
+                probe_octave = probe_list[0][-1] # above example gets the 3 or the 5
+                probe_cond = probe_list[1] # probe[1] will always be "Probe" but can't hurt to store it
+                probe_timbre = probe_list[2] #should always be the same as stim_timbre but can't hurt
+
+                # something like ['2', '1', '5', '2', '2', '4', '20', '0', 'H', '0', 'Emaj']
+                lloyd_list = lloyd_line.strip().split(",") # something like
+                vividness = int(float(lloyd_list[3]))
+                GoF = int(float(lloyd_list[4]))
+
+                # create the beautiful tuple of information
+                # (idx, subid, accession, key, run_n, cycle_n, stimHorI, stimtimbre, stimnote, stimoctave, vividness,
+                #                                                      "Probe", probetimbre, probenote, probeoctave, GoF)
+                cycle_info = (idx, sub, accession, majorkey, str(run), str(cycle_n),
+                         stim_cond, stim_note, stim_octave, vividness,
+                         probe_cond, probe_timbre, probe_note, probe_octave, GoF)
+
+                cycle_list.append(cycle_info)
+
+                # increment cycle_n
+                cycle_n += 1
+                lloyd_line = lloyd_fp.readline().strip()
+
+            # end of this run
+        # end of all runs for this subject
+        # this subject is the key to obtain the list of all their cycle-tuples
+        sub_cycle_dict[sub] = cycle_list
+
+    # done with all subjects
+    # dict was passed by reference, don't need to return anything
 
 
 
