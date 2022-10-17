@@ -16,6 +16,7 @@ from random import randint
 import numpy as np
 from helpers import *
 from voxel_transformer import *
+from transfer_transformer import *
 from pitchclass_data import *
 from torch.utils.data import DataLoader, Subset
 from sklearn.model_selection import train_test_split
@@ -213,7 +214,7 @@ if __name__ == "__main__":
         src_pad_sequence = [0]*voxel_dim
 
         model = Transformer(next_sequence_labels=binary_task_labels, num_genres=num_genres, src_pad_sequence=src_pad_sequence, max_length=max_length, voxel_dim=voxel_dim, ref_samples=ref_samples, mask_task=hp_dict["mask_task"]).to(hp_dict["device"])
-        model.load_state_dict(torch.load(model_file))
+        model.load_state_dict(torch.load(model_file), strict=False)
         model = model.float()
         #model.to(hp_dict["device"])
         model.print_flag = 0

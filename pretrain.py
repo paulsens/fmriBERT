@@ -75,7 +75,7 @@ if __name__ == "__main__":
         #dictionary of hyperparameters, eventually should probably come from command line
         hp_dict={
 
-            "task":"binaryonly",
+            "task":"both",
             "binary":"nextseq", #same_genre or nextseq
             "mask_task":"reconstruction",
             "COOL_DIVIDEND" : COOL_DIVIDEND,
@@ -470,13 +470,13 @@ if __name__ == "__main__":
         #     if param.requires_grad:
         #         print(name, param.data)
         modelcount=0
-        model_path = opengenre_preproc_path+"trained_models/"+str(hp_dict["task"])+"/oct5/"+"states_"+str(thiscount)+str(modelcount)+".pt"
+        model_path = opengenre_preproc_path+"trained_models/oct6/"+str(hp_dict["task"])+"/states_"+str(thiscount)+str(modelcount)+".pt"
         while(os.path.exists(model_path)):
             modelcount+=1
-            model_path = opengenre_preproc_path+"trained_models/"+str(hp_dict["task"])+"/oct5/"+"states_"+str(thiscount)+str(modelcount)+".pt"
+            model_path = opengenre_preproc_path+"trained_models/oct6/"+str(hp_dict["task"])+"/states_"+str(thiscount)+str(modelcount)+".pt"
 
         torch.save(model.state_dict(),model_path)
-        model_path = opengenre_preproc_path + "trained_models/" + str(hp_dict["task"]) + "/oct5/" + "full_" + str(thiscount) + str(
+        model_path = opengenre_preproc_path + "trained_models/oct6/"+str(hp_dict["task"])+"/full_" + str(thiscount) + str(
             modelcount) + ".pt"
         torch.save(model,model_path)
 

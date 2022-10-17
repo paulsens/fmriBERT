@@ -73,7 +73,7 @@ class SelfAttention(nn.Module):
         if mask is not None:
             #print("energy has shape "+str(energy.shape))
             #print("mask has shape "+str(mask.shape))
-            energy = energy.masked_fill(mask == 1, float("-1e20"))
+            energy = energy.masked_fill(mask == 0, float("-1e20"))
         if(sa_print_flag):
             print("after filling, energy is "+str(energy))
         temp = energy / (self.voxel_dim ** (1 / 2))

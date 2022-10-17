@@ -266,12 +266,16 @@ def get_accuracy(y_pred, y_true, task, log=None):
 #calculate mean of each channel across timesteps and subtract it from each timestep
 #calculate new standard deviation of each channel and divide each timestep by that amount
 #voxel data should already be TRs by COOL_DIVIDEND after accounting for test_copies
-def standardize_flattened(voxel_data):
+def standardize_flattened(voxel_data, token_dims=False):
     stand = copy.deepcopy(voxel_data)
 
     TRs = len(voxel_data)
     channels = len(voxel_data[0])
-    for channel in range(3, channels): #don't do this for first three channels, they're just token flag dimensions
+    if token_dims:
+        loopstart=3
+    else:
+        loopstart = 0
+    for channel in range(loopstart, channels): #don't do this for first three channels, they're just token flag dimensions
 
         mean = 0
         for TR in range(0, TRs):
@@ -286,9 +290,14 @@ def standardize_flattened(voxel_data):
 
 
         new_mean=new_mean/TRs #mean of shifted data
+        print("mean of shifted data is "+str(new_mean))
         new_dev = 0
+        print("in new dev calc, TRs is "+str(TRs))
         for TR in range(0, TRs):
+
             new_dev+=(stand[TR][channel]-new_mean)**2
+            if TR % 200 == 0:
+                print("new dev for TR " + str(TR) + " is " + str(new_dev))
         new_dev = sqrt(new_dev/TRs)
 
         #unit variance
@@ -297,7 +306,7 @@ def standardize_flattened(voxel_data):
 
     return stand
 
-def detrend_flattened(voxel_data, detrend="linear"):
+def detrend_flattened(voxel_data, detrend="linear", token_dims=False):
     # each voxel is detrended independently so fix the voxel i.e the column and loop over the timesteps
     n_columns = len(voxel_data[0])
     n_rows = len(voxel_data)
@@ -309,7 +318,11 @@ def detrend_flattened(voxel_data, detrend="linear"):
     y_plots=[]
     model=None
     # dimensions 0, 1, and 2 in voxel space are just token dimensions, don't detrend those
-    for voxel in range(3, n_columns):
+    if token_dims:
+        loopstart = 3
+    else:
+        loopstart = 0
+    for voxel in range(loopstart, n_columns):
         y_train = voxel_data[:,voxel]
         maxv = max(x_train)
         minv = min(x_train)
@@ -531,7 +544,7 @@ def make_sub_info_dict(targets_dir, info_dict):
 # (idx, subid, accession, key, run_n, cycle_n, stimHorI, stimtimbre, stimnote, stimoctave, vividness,
 # "Probe", probetimbre, probenote, probeoctave, GoF) ]
 #    example of such a tuple:
-# ('42', 'sid001680', 'A003274', 'E', '1', '17', 'Heard', 'G#', '4', 4, 'Probe', 'Trumpet', 'B', '4', 4)#
+# ('42', 'sid001680', 'A003274', 'E', '4', '5', 'Heard', 'Clarinet', 'F#', '4', 4, 'Probe', 'Clarinet', 'B', '4', 3)
 # list of cycles is in temporal order
 def make_sub_cycle_dict(targets_dir, code_dict, sub_info_dict, sub_cycle_dict):
     sublist=sub_info_dict.keys()
@@ -584,7 +597,7 @@ def make_sub_cycle_dict(targets_dir, code_dict, sub_info_dict, sub_cycle_dict):
                 # (idx, subid, accession, key, run_n, cycle_n, stimHorI, stimtimbre, stimnote, stimoctave, vividness,
                 #                                                      "Probe", probetimbre, probenote, probeoctave, GoF)
                 cycle_info = (idx, sub, accession, majorkey, str(run), str(cycle_n),
-                         stim_cond, stim_note, stim_octave, vividness,
+                         stim_cond, stim_timbre, stim_note, stim_octave, vividness,
                          probe_cond, probe_timbre, probe_note, probe_octave, GoF)
 
                 cycle_list.append(cycle_info)

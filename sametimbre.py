@@ -18,26 +18,25 @@ import datetime
 
 debug=1
 val_flag=1
-seed=3
+seed=5
 random.seed(seed)
 torch.manual_seed(seed)
 np.random.seed(seed)
 LR_def=0.0001 #defaults, should normally be set by command line
 voxel_dim=420
 src_pad_sequence = [0] * voxel_dim
-FINETUNE_EPOCHS=1
+FINETUNE_EPOCHS=10
 BATCH_SIZE=1
 
 if __name__=="__main__":
     # load the september 26th model on the "both" task, index 3 (starts from 0)
     # so this is ofile o_4963132 in the ofiles for sept26th "both"
     if env=="local":
-        pretrained_model_states = "/Volumes/External/opengenre/preproc/trained_models/both/sept26/states_30.pt"
-        data_path = "/Volumes/External/pitchclass/finetuning/sametimbre/datasets/1/"
+        pretrained_model_states = "/Volumes/External/opengenre/preproc/trained_models/oct6/both/states_50.pt"
+        data_path = "/Volumes/External/pitchclass/finetuning/sametimbre/datasets/2/"
     if env=="discovery":
-        pretrained_model_states = "/isi/music/auditoryimagery2/seanthesis/opengenre/preproc/trained_models/both/" \
-                                  "sept26/states_30.pt"
-        data_path = "/isi/music/auditoryimagery2/seanthesis/pitchclass/finetuning/sametimbre/datasets/1/"
+        pretrained_model_states = "/isi/music/auditoryimagery2/seanthesis/opengenre/preproc/trained_models/oct6/binaryonly/states_30.pt"
+        data_path = "/isi/music/auditoryimagery2/seanthesis/pitchclass/finetuning/sametimbre/datasets/3/"
 
     # load the training and validation data
     with open(data_path+"all_X.p", "rb") as samples_fp:
@@ -94,11 +93,16 @@ if __name__=="__main__":
     # create the model
     model = Transformer(next_sequence_labels=2, num_genres=10, src_pad_sequence=src_pad_sequence, max_length=12, voxel_dim=voxel_dim, ref_samples=None, mask_task=None, print_flag=0)
     # shut off the state loading for baseline
-    model.load_state_dict(torch.load(model_file), strict=False)
+    model.load_state_dict(torch.load(pretrained_model_states), strict=False)
+    finetune_params = ["output_layer_finetune.1.bias", "output_layer_finetune.1.weight", "output_layer_finetune.0.bias", "output_layer_finetune.0.weight"]
+#    params = model.state_dict()
+#    finetune_tensors = (params[tensor_name] for tensor_name in finetune_params)
+
     model = model.float()
 
     criterion_bin = nn.CrossEntropyLoss()
     optimizer = optim.Adam(model.parameters(), lr=LR_def, betas=(0.9, 0.999), weight_decay=0.0001)
+    #optimizer = optim.Adam(finetune_tensors, lr=LR_def, betas=(0.9, 0.999), weight_decay=0.0001)
 
     # train
     for e in range(0, FINETUNE_EPOCHS):
@@ -211,15 +215,15 @@ if __name__=="__main__":
             # after batch
         # after with torch.no_grad()
         # print training stats for this epoch
+        print("Epoch bin training stats:")
         print(f'Epoch {e+0:03}: | Loss: {epoch_loss/len(train_loader):.5f} | Acc: {epoch_acc/len(train_loader):.3f}')
-        print("Epoch bin training stats:\n")
         print("correct counts for this epoch: "+str(bin_correct_train))
         print("bin neg sample count: "+str(bin_neg_count_train))
         print("number of samples: "+str(len(train_loader)))
-
+        print("\n")
+        print("Epoch bin val stats:")
         print(f'Epoch {e+0:03}: | Loss: {val_loss/len(val_loader):.5f} | Acc: {val_acc/len(val_loader):.3f}')
-        print("Epoch bin val stats:\n")
-        print("correct counts for this epoch: " + str(bin_correct_val))
+        print("correct counts for this epoch's val split: " + str(bin_correct_val))
         print("bin neg sample count: " + str(bin_neg_count_val))
         print("number of samples: " + str(len(val_loader)))
 
