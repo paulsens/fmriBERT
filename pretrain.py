@@ -36,16 +36,19 @@ if __name__ == "__main__":
         args = [arg for arg in sys.argv[1:] if not arg.startswith("-")]
         if "-m" in opts:
             # -m "this is the description of the run" will be at the end of the command line call
-            run_desc = args[-1]
+            idx = opts.index("-m")
+            run_desc = args[idx]
         else:
             run_desc = None
         if "-gpu" in opts:
-            gpunum=args[-3] #currently only works if only one gpu is given
+            idx = opts.index("-gpu")
+            gpunum=args[idx] #currently only works if only one gpu is given
             device = torch.device("cuda:"+str(gpunum))
         else:
             device="cpu"
         if "-count" in opts:
-            thiscount=int(args[-2])
+            idx = opts.index("-count")
+            thiscount=int(args[idx])
             held_start=(600 + (400 * thiscount))
             held_range=range(held_start, held_start+400)
         else:
@@ -53,13 +56,15 @@ if __name__ == "__main__":
             held_start=None
             held_range=None
         if "-LR" in opts:
-            LR = args[-3]
+            idx = opts.index("-LR")
+            LR = args[idx]
             if LR=="default":
                 LR = LR_def #default value if nothing is passed by command line
             LR = float(LR)
 
         if "-binweight" in opts:
-            bintask_weight= args[-4]
+            idx = opts.index("-binweight")
+            bintask_weight= args[idx]
             if bintask_weight=="default":
                 bintask_weight=1
             else:
@@ -470,13 +475,13 @@ if __name__ == "__main__":
         #     if param.requires_grad:
         #         print(name, param.data)
         modelcount=0
-        model_path = opengenre_preproc_path+"trained_models/oct6/"+str(hp_dict["task"])+"/states_"+str(thiscount)+str(modelcount)+".pt"
+        model_path = opengenre_preproc_path+"trained_models/nov7/"+str(hp_dict["task"])+"/states_"+str(thiscount)+str(modelcount)+".pt"
         while(os.path.exists(model_path)):
             modelcount+=1
-            model_path = opengenre_preproc_path+"trained_models/oct6/"+str(hp_dict["task"])+"/states_"+str(thiscount)+str(modelcount)+".pt"
+            model_path = opengenre_preproc_path+"trained_models/nov7/"+str(hp_dict["task"])+"/states_"+str(thiscount)+str(modelcount)+".pt"
 
         torch.save(model.state_dict(),model_path)
-        model_path = opengenre_preproc_path + "trained_models/oct6/"+str(hp_dict["task"])+"/full_" + str(thiscount) + str(
+        model_path = opengenre_preproc_path + "trained_models/nov7/"+str(hp_dict["task"])+"/full_" + str(thiscount) + str(
             modelcount) + ".pt"
         torch.save(model,model_path)
 
