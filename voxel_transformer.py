@@ -14,16 +14,26 @@ class SelfAttention(nn.Module):
 
         assert (self.head_dim * heads == voxel_dim)
 
-        self.values_heads = []
-        self.keys_heads = []
-        self.queries_heads = []
+        self.values_heads = nn.ModuleList(
+            [nn.Linear(self.head_dim, self.head_dim, bias=True)
+             for _ in range(self.heads)]
+        )
+        self.keys_heads = nn.ModuleList(
+            [nn.Linear(self.head_dim, self.head_dim, bias=True)
+             for _ in range(self.heads)]
+        )
+        self.queries_heads = nn.ModuleList(
+            [nn.Linear(self.head_dim, self.head_dim, bias=True)
+             for _ in range(self.heads)]
+        )
 
-        #Multi head attention maps
-        for i in range(0, self.heads):
-
-            self.values_heads.append(nn.Linear(self.head_dim, self.head_dim, bias=True))
-            self.keys_heads.append(nn.Linear(self.head_dim, self.head_dim, bias=True))
-            self.queries_heads.append(nn.Linear(self.head_dim, self.head_dim, bias=True))
+        #
+        # #Multi head attention maps
+        # for i in range(0, self.heads):
+        #
+        #     self.values_heads.append(nn.Linear(self.head_dim, self.head_dim, bias=True))
+        #     self.keys_heads.append(nn.Linear(self.head_dim, self.head_dim, bias=True))
+        #     self.queries_heads.append(nn.Linear(self.head_dim, self.head_dim, bias=True))
 
         self.fc_out = nn.Linear(self.heads * self.head_dim, voxel_dim)
 
@@ -40,30 +50,38 @@ class SelfAttention(nn.Module):
         new_values = values.clone()
         new_keys = keys.clone()
         new_queries = queries.clone()
-
+        #print(self.values_heads[0].weight)
+        #if True:
+        if sa_print_flag:
+            print("new values is "+str(new_values))
+            print("new keys is "+str(new_keys))
+            print("new queries is "+str(new_queries))
         #Messy looking loop but wouldn't work with python-ese attempts
-        if True:
-            for batch_idx in range(0,N):
-                for element in range(0,value_len):
-                    for i in range(0, self.heads):
-                        new_values[batch_idx][element][i] = self.values_heads[i](values[batch_idx][element][i])
 
-                for element in range(0, key_len):
-                    for i in range(0, self.heads):
-                        new_keys[batch_idx][element][i] = self.keys_heads[i](keys[batch_idx][element][i].clone())
+        for batch_idx in range(0,N):
+            for element in range(0,value_len):
+                for i in range(0, self.heads):
+                    new_values[batch_idx][element][i] = self.values_heads[i](values[batch_idx][element][i])
+            #print("after filling, new values is "+str(new_values))
+            for element in range(0, key_len):
+                for i in range(0, self.heads):
+                    new_keys[batch_idx][element][i] = self.keys_heads[i](keys[batch_idx][element][i])
+            #print("after filling, new keys is "+str(new_keys))
 
-                for element in range(0, query_len):
-                    for i in range(0, self.heads):
-                        new_queries[batch_idx][element][i] = self.queries_heads[i](queries[batch_idx][element][i])
+            for element in range(0, query_len):
+                for i in range(0, self.heads):
+                    new_queries[batch_idx][element][i] = self.queries_heads[i](queries[batch_idx][element][i])
+            #print("after filling, new queries is "+str(new_queries))
 
         energy = torch.einsum("nqhd,nkhd->nhqk", [new_queries,new_keys])
 
+        #if True:
         if(sa_print_flag):
-            #print("new queries is "+str(new_queries)+" and has shape "+str(new_queries.shape))
-            #print("new keys is "+str(new_keys)+" and has shape "+str(new_keys.shape))
+            print("new queries is "+str(new_queries)+" and has shape "+str(new_queries.shape))
+            print("new keys is "+str(new_keys)+" and has shape "+str(new_keys.shape))
             print("new values is "+str(new_values)+" and has shape "+str(new_values.shape))
-            print("energy is "+str(energy))
-            print("in SA mask is "+str(mask))
+            #print("energy is "+str(energy))
+            #print("in SA mask is "+str(mask))
         # queries shape: (N, query_len, heads, heads_dim)
         # keys shape: (N, key_len, heads, heads_dim)
         # energy shape: (N, heads, query_len, key_len)
@@ -72,13 +90,15 @@ class SelfAttention(nn.Module):
             #print("energy has shape "+str(energy.shape))
             #print("mask has shape "+str(mask.shape))
             energy = energy.masked_fill(mask == 1, float("-1e20"))
+        #if True:
         if(sa_print_flag):
             print("after filling, energy is "+str(energy))
         temp = energy / (self.voxel_dim ** (1 / 2))
+        #if True:
         if(sa_print_flag):
             print("temp is "+str(temp))
         attention = torch.softmax(temp, dim=3)
-
+        #print("attention is "+str(attention))
 
         out = torch.einsum("nhql,nlhd->nqhd",[attention, new_values]).reshape(
             N, query_len, self.heads*self.head_dim
@@ -97,7 +117,8 @@ class SelfAttention(nn.Module):
 class TransformerBlock(nn.Module):
     def __init__(self, voxel_dim, heads, dropout, forward_expansion):
         super(TransformerBlock, self).__init__()
-        self.attention = SelfAttention(voxel_dim, heads)
+        #self.attention = SelfAttention(voxel_dim, heads)
+        self.attention = nn.MultiheadAttention(voxel_dim, heads, batch_first=True)
         self.norm1 = nn.LayerNorm(voxel_dim)
         self.norm2 = nn.LayerNorm(voxel_dim)
         self.feed_forward = nn.Sequential(
@@ -107,16 +128,19 @@ class TransformerBlock(nn.Module):
         )
         self.dropout = nn.Dropout(dropout)
     def forward(self, value, key, query, mask, block_print_flag=0):
-        attention = self.attention(value, key, query, mask, block_print_flag)
         if(block_print_flag):
             print("value is "+str(value))
             print("key is "+str(key))
             print("query is "+str(query))
             print("mask is "+str(mask))
+
+        attention, attn_weights = self.attention(query, key, value, average_attn_weights=False)
+
         x = self.dropout(self.norm1(attention + query))
         forward = self.feed_forward(x)
         out = self.dropout(self.norm2(forward + x))
         if(block_print_flag):
+        #if True:
             print("in block's forward:\n")
             print("value is "+str(value))
             print("attention is "+str(attention))
@@ -153,24 +177,28 @@ class Encoder(nn.Module):
         self.dropout = nn.Dropout(dropout)
 
     def forward(self, x, mask, encoder_print_flag):
+        #print("Encoder forward received x as "+str(x))
         N, seq_length, voxel_dim = x.shape
         #print("seq_length is "+str(seq_length))
         positions = torch.arange(0, seq_length).expand(N, seq_length).to(self.device)
         #print("positions is "+str(positions))
 
         embedded_positions = self.position_embedding(positions)
-
+        #print("embedded positions is "+str(embedded_positions))
         #print("embedded_positions is "+str(embedded_positions))
         #print("x has shape "+str(x.shape))
         out = self.dropout(x + embedded_positions)
         if(encoder_print_flag):
+        #if True:
             print("In Encoder's forward, x is "+str(x))
             print("positions is "+str(positions))
             print("embedded positions is "+str(embedded_positions))
+            print("out is "+str(out))
 
         for layer in self.layers:
             out = layer(out, out, out, mask, encoder_print_flag)
             if(encoder_print_flag):
+            #if True:
                 print("out for layer "+str(layer)+" is "+str(out))
         return out
 
@@ -331,6 +359,7 @@ class Transformer(nn.Module):
 
     def forward(self, src, mask_indices):
         if(self.print_flag):
+        #if True:
             print("src is "+str(src)+" and mask indices is "+str(mask_indices))
         src_mask = self.make_src_mask(src)
         #trg_mask = None
@@ -366,6 +395,7 @@ class Transformer(nn.Module):
         if(self.mask_task=="genre_decoding"):
             out_multi=self.output_layer_genredecoding(batch_MSK_tokens)
         elif(self.mask_task=="reconstruction"):
+            #print("batch msk tokens is "+str(batch_MSK_tokens))
             out_multi=self.output_layer_reconstruction(batch_MSK_tokens)
         return out_bin, out_multi
 

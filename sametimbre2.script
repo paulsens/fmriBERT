@@ -1,0 +1,21 @@
+#Number of tasks per node 
+#SBATCH --cpus-per-task=4
+
+#Request memory
+#SBATCH --mem=20G
+
+#Walltime
+#SBATCH --time=15:00:00
+
+#Import environment variables from caller's environment 
+#SBATCH --export=ALL
+
+#error and output files
+#SBATCH -o /isi/music/auditoryimagery2/seanthesis/pitchclass/finetuning/sametimbre/ofiles/o_%j.txt
+#SBATCH -e /isi/music/auditoryimagery2/seanthesis/pitchclass/finetuning/sametimbre/errfiles/o_%j.err
+#SBATCH --mail-user=paulsen.sean@gmail.com
+source /dartfs-hpc/rc/home/3/f003543/.conda/envs/fmribert/bin/activate fmribert
+
+
+python /isi/music/auditoryimagery2/seanthesis/pyfiles2/sametimbre.py 
+-count "$2" -m "$1"
