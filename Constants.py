@@ -1,4 +1,4 @@
-env = "discovery"
+env = "local"
 if env == "local":
     proj_dir = "/Users/sean/Desktop/current_research/fmriBERTfix/fmriBERT/"
     targets_dir = proj_dir+"targets/"
@@ -96,7 +96,7 @@ if env == "local":
     EPOCHS = 1
 elif env == "discovery":
     ATTENTION_HEADS = 6
-    EPOCHS = 10
+    EPOCHS = 5
 
 #when the binary classi task is samegenre, and there are N samples from each genre,
 # then we could potentially have (N-1) yes pairs and another N-1 no pairs

@@ -1,13 +1,13 @@
 # mostly a copy of pretrain.py with adjustments for pure evaluation
 # index of saved from from 0 to 11 inclusive
-index = 5
+index = 0
 # task is either binaryonly, multionly, or both
-evaltask = "binaryonly"
+evaltask = "both"
 basepath = "/Volumes/External/opengenre/saveloadtest/2/"
 state_path = "/Volumes/External/opengenre/preproc/trained_models/"+str(evaltask)+"/sep26/"
 state_file = state_path+"states_"+str(index)+"0.pt"
 #model_file = "/isi/music/auditoryimagery2/seanthesis/opengenre/preproc/trained_models/binaryonly/oct1/full_52.pt"
-model_file = "/Volumes/External/opengenre/preproc/trained_models/binaryonly/oct1/states_50.pt"
+model_file =  "/Volumes/External/opengenre/final/"+evaltask+"/states_"+str(index)+".pt"
 
 import torch
 import torch.nn as nn
@@ -16,7 +16,6 @@ from random import randint
 import numpy as np
 from helpers import *
 from voxel_transformer import *
-from transfer_transformer import *
 from pitchclass_data import *
 from torch.utils.data import DataLoader, Subset
 from sklearn.model_selection import train_test_split
@@ -214,7 +213,7 @@ if __name__ == "__main__":
         src_pad_sequence = [0]*voxel_dim
 
         model = Transformer(next_sequence_labels=binary_task_labels, num_genres=num_genres, src_pad_sequence=src_pad_sequence, max_length=max_length, voxel_dim=voxel_dim, ref_samples=ref_samples, mask_task=hp_dict["mask_task"]).to(hp_dict["device"])
-        model.load_state_dict(torch.load(model_file), strict=False)
+        model.load_state_dict(torch.load(model_file))
         model = model.float()
         #model.to(hp_dict["device"])
         model.print_flag = 0
@@ -246,6 +245,7 @@ if __name__ == "__main__":
             epoch_acc2 = 0
 
             for X_batch, y_batch in train_loader:
+                print("length of train loader is "+str(len(train_loader)))
                 batch_mask_indices = []
                 X_batch=X_batch.float()
                 y_batch=y_batch.float()
@@ -305,9 +305,9 @@ if __name__ == "__main__":
                 loss_multi = criterion_multi(ypred_multi_batch, ytrue_multi_batch)
                 #log.write("The loss in that case was "+str(loss_multi)+"\n\n")
                 if printed_count < 1:
-                    print("sample "+str(printed_count)+": "+str(X_batch)+"\n\n")
-                    print("ypred "+str(printed_count)+": "+str(ypred_bin_batch)+"\n\n")
-                    print("ytrue "+str(printed_count)+": "+str(ytrue_bin_batch)+"\n\n")
+                    #print("sample "+str(printed_count)+": "+str(X_batch)+"\n\n")
+                    #print("ypred "+str(printed_count)+": "+str(ypred_bin_batch)+"\n\n")
+                    #print("ytrue "+str(printed_count)+": "+str(ytrue_bin_batch)+"\n\n")
                     printed_count+=1
                     model.print_flag=0
 
@@ -317,10 +317,10 @@ if __name__ == "__main__":
                 elif hp_dict["task"] == "multionly":
                     loss = loss_multi
                     print_choice=random.randint(0,100)
-                    if(print_choice>98):
-                        print("batch loss is "+str(loss))
-                        print("ypred is "+str(ypred_multi_batch))
-                        print("ytrue is "+str(ytrue_multi_batch))
+                    #if(print_choice>98):
+                        #print("batch loss is "+str(loss))
+                        #print("ypred is "+str(ypred_multi_batch))
+                        #print("ytrue is "+str(ytrue_multi_batch))
                     acc = get_accuracy(ypred_multi_batch, ytrue_multi_batch, hp_dict["mask_task"], log)
 
                     # if(get_multi_acc):
@@ -359,8 +359,9 @@ if __name__ == "__main__":
             #         print(name,param.data)
 
             if val_X is not None:
+                count = 0
                 model.eval()
-                model.print_flag=1
+                model.print_flag=0
 
                 random.seed(seed)
                 torch.manual_seed(seed)
@@ -386,7 +387,7 @@ if __name__ == "__main__":
                                 (10,))  # only used when this sample gets two masks/replacements
                             # no return value from apply_masks, everything is updated by reference in the lists
                             apply_masks(X_batch_val[x], y_batch_val[x], ref_samples, hp_dict, mask_variation,   ytrue_multi_batch_val, sample_dists_val, ytrue_dist_multi1_val, ytrue_dist_multi2_val, batch_mask_indices_val, sample_mask_indices_val, mask_task=hp_dict["mask_task"], log=log, heldout=True)
-
+                        print("val x is " + str(X_batch_val[0]))
                         epoch_val_masks.append(batch_mask_indices_val)
 
                         for y in range(0, hp_dict["BATCH_SIZE"]):
@@ -404,7 +405,14 @@ if __name__ == "__main__":
                         ytrue_multi_batch_val = torch.from_numpy(ytrue_multi_batch_val).float()
                         epoch_val_masks.append(batch_mask_indices_val)
                         # returns predictions for binary class and multiclass, in that order
+                        print("Xbatchval is "+str(X_batch_val))
                         ypred_bin_batch_val, ypred_multi_batch_val = model(X_batch_val, batch_mask_indices_val)
+                        count+=1
+                        print(ypred_bin_batch_val)
+                        print(ypred_multi_batch_val)
+                        print(batch_mask_indices_val)
+                        if(count==2):
+                            quit(0)
 
                         #get accuracy stats for validation samples
                         for batch_idx, bin_pred in enumerate(

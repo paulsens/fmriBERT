@@ -26,7 +26,7 @@ def partition_idxs(idx_list, val_size):
 # we want to pair up the indices to make training samples in a specific way
 # right now, each index in each list gets paired with an index from each of the four lists
 # with special care to not pair an index with itself
-def pair_idxs(given_lists):
+def pair_idxs(given_lists, num_pairs=1):
     list_of_lists = []
 
     # if we're not including imagined data, two of the elements in given_lists will be None
@@ -38,19 +38,31 @@ def pair_idxs(given_lists):
     idx_pairs = []
     for idx_list in list_of_lists: # go through each list of indexes
         for left_idx in idx_list: # each index in that list
-            for partner_list in list_of_lists: #pair it with an index from each list
+            # store the partners selected so far
+            partners_so_far = []
+            # how many partners from each condition are we finding for each left_idx? default is 1
+            for partner in range(0, num_pairs):
+                for partner_list in list_of_lists: #pair it with an index from each list
 
-                if idx_list==partner_list: # if the two lists are the same, don't pair with yourself
-                    right_idx=left_idx
-                    while(right_idx==left_idx):
-                        right_idx=random.choice(partner_list)
-                else: # otherwise, get a random selection without a care in the world
-                    right_idx = random.choice(partner_list)
-                    # at the moment, this does allow for a right_idx to appear more than once, and thus for some to never appear on the right side, but it's such a mess to prevent that for almost no real benefit
-                    # may fix that in the future
+                    if idx_list==partner_list: # if the two lists are the same, don't pair with yourself
+                        right_idx=left_idx
+                        while(right_idx==left_idx):
+                            right_idx=random.choice(partner_list)
+                            # don't pick the same one twice if we're doing more than one per condition
+                            if right_idx in partners_so_far:
+                                right_idx = left_idx
 
-                pair = (left_idx, right_idx)
-                idx_pairs.append(pair)
+                    else: # otherwise, get a random selection without a care in the world
+                        right_idx = random.choice(partner_list)
+                        # don't pick the same one twice
+                        while right_idx in partners_so_far:
+                            right_idx = random.choice(partner_list)
+                        # at the moment, this does allow for a right_idx to appear more than once, and thus for some to never appear on the right side, but it's such a mess to prevent that for almost no real benefit
+                        # may fix that in the future
+
+                    partners_so_far.append(right_idx)
+                    pair = (left_idx, right_idx)
+                    idx_pairs.append(pair)
 
     #now every index in every list should have been paired with an index from each of the lists
     return idx_pairs
@@ -171,7 +183,7 @@ info_idx = {
 
 #where is the training data?
 data_path = pitchclass_preproc_path
-save_path = "/Volumes/External/pitchclass/finetuning/sametimbre/datasets/3/"
+save_path = "/Volumes/External/pitchclass/finetuning/sametimbre/datasets/7/"
 #just put the sub-sid00xxxx in twice between these
 
 all_X = []
@@ -189,6 +201,8 @@ if __name__ == "__main__":
     do_subjects = True
     do_all = True
     include_imagined = False
+    # do we want to partition out some percentage of the samples or do we want to hold out runs?
+    holdout_runs = True
     # do_subjects will create and pickle each subject separately
     # do_all assumes those subject pickled files already exist, so you can run both at once or do_subjects first
     if do_subjects:
@@ -210,24 +224,24 @@ if __name__ == "__main__":
                 sub_allruns = pickle.load(allruns_fp)
             xlen = len(sub_allruns)
             ylen = len(sub_allruns[0])
-            print("some samples before detrending: ")
-            print(sub_allruns[100])
-            print(sub_allruns[1000])
+            # print("some samples before detrending: ")
+            # print(sub_allruns[100])
+            # print(sub_allruns[1000])
             sub_allruns = detrend_flattened(sub_allruns, detrend="linear", token_dims=True)
-            print("some samples after detrending: ")
-            print(sub_allruns[100])
-            print(sub_allruns[1000])
+            # print("some samples after detrending: ")
+            # print(sub_allruns[100])
+            # print(sub_allruns[1000])
             xlen = len(sub_allruns)
             ylen = len(sub_allruns[0])
-            print("before standardize, shape is " + str(xlen) + "," + str(ylen))
+            #print("before standardize, shape is " + str(xlen) + "," + str(ylen))
 
             sub_allruns = standardize_flattened(sub_allruns, token_dims=True)
             xlen = len(sub_allruns)
             ylen = len(sub_allruns[0])
-            print("after standardize, shape is " + str(xlen) + "," + str(ylen))
-            print("some examples are: \n")
-            print(str(sub_allruns[100]))
-            print(str(sub_allruns[1000]))
+            #print("after standardize, shape is " + str(xlen) + "," + str(ylen))
+            #print("some examples are: \n")
+            #print(str(sub_allruns[100]))
+            #print(str(sub_allruns[1000]))
             # each element of sub_cycle has all relevant information for a cycle for this subject
             sub_cycles=sub_cycle_dict[shortsubid]
 
@@ -243,43 +257,94 @@ if __name__ == "__main__":
             HC_idxs = []
             IT_idxs = []
             IC_idxs = []
+            HT_train_idxs = []
+            HC_train_idxs = []
+            HT_val_idxs = []
+            HC_val_idxs = []
+            IT_train_idxs = []
+            IC_train_idxs = []
+            IT_val_idxs = []
+            IC_val_idxs = []
             # we use the above indices to check/retrieve information we want from the long tuples in sub_cycles
 
-            for idx in range(0, len(sub_cycles)):
-                cycle_info = sub_cycles[idx]
-                cycle_n = cycle_info[cycle_idx]
-                run_n = cycle_info[run_idx]
-                cond = cycle_info[cond_idx]
-                timbre = cycle_info[timbre_idx]
-                if(cond=="Heard"):
-                    if(timbre=="Clarinet"):
-                        HC_idxs.append(idx)
-                    elif(timbre=="Trumpet"):
-                        HT_idxs.append(idx)
+            # holdout_runs means hold out entire runs, this path instead holds out some percentage of cycles
+            if not holdout_runs:
+                for idx in range(0, len(sub_cycles)):
+                    #print("len of sub_cycles is "+str(len(sub_cycles)))
+                    cycle_info = sub_cycles[idx]
+                    cycle_n = cycle_info[cycle_idx]
+                    run_n = cycle_info[run_idx]
+                    cond = cycle_info[cond_idx]
+                    timbre = cycle_info[timbre_idx]
 
-                elif (cond=="Imagined") and include_imagined:
-                    if(timbre=="Clarinet"):
-                        IC_idxs.append(idx)
-                    elif(timbre=="Trumpet"):
-                        IT_idxs.append(idx)
+                    if(cond=="Heard"):
+                        if(timbre=="Clarinet"):
+                            HC_idxs.append(idx)
+                        elif(timbre=="Trumpet"):
+                            HT_idxs.append(idx)
 
-            # so now the four lists have all their corresponding indexes into sub_cycles
-            # split them up into training and validation
-            HC_train_idxs, HC_val_idxs = partition_idxs(HC_idxs, 6)
-            HT_train_idxs, HT_val_idxs = partition_idxs(HT_idxs, 6)
-            if include_imagined:
-                IC_train_idxs, IC_val_idxs = partition_idxs(IC_idxs, 6)
-                IT_train_idxs, IT_val_idxs = partition_idxs(IT_idxs, 6)
+                    elif (cond=="Imagined") and include_imagined:
+                        if(timbre=="Clarinet"):
+                            IC_idxs.append(idx)
+                        elif(timbre=="Trumpet"):
+                            IT_idxs.append(idx)
+
+                # so now the four lists have all their corresponding indexes into sub_cycles
+                # split them up into training and validation
+                HC_train_idxs, HC_val_idxs = partition_idxs(HC_idxs, 6)
+                HT_train_idxs, HT_val_idxs = partition_idxs(HT_idxs, 6)
+                if include_imagined:
+                    IC_train_idxs, IC_val_idxs = partition_idxs(IC_idxs, 6)
+                    IT_train_idxs, IT_val_idxs = partition_idxs(IT_idxs, 6)
+                else:
+                    IC_train_idxs, IC_val_idxs = None, None
+                    IT_train_idxs, IT_val_idxs = None, None
+                # print("HC_train_idxs are "+str(HC_train_idxs))
+                # print("HT_train_idxs are "+str(HT_train_idxs))
+                # print("IC_train_idxs are "+str(IC_train_idxs))
+                # print("IT_train_idxs are "+str(IT_train_idxs))
+
+            # if we are holding out entire runs
             else:
-                IC_train_idxs, IC_val_idxs = None, None
-                IT_train_idxs, IT_val_idxs = None, None
-            # print("HC_train_idxs are "+str(HC_train_idxs))
-            # print("HT_train_idxs are "+str(HT_train_idxs))
-            # print("IC_train_idxs are "+str(IC_train_idxs))
-            # print("IT_train_idxs are "+str(IT_train_idxs))
+                for idx in range(0, len(sub_cycles)):
+                    #print("len of sub_cycles is "+str(len(sub_cycles)))
+                    cycle_info = sub_cycles[idx]
+                    cycle_n = cycle_info[cycle_idx]
+                    run_n = cycle_info[run_idx]
+                    cond = cycle_info[cond_idx]
+                    timbre = cycle_info[timbre_idx]
 
-            trainidx_pairs = pair_idxs([HC_train_idxs, HT_train_idxs, IC_train_idxs, IT_train_idxs])
-            validx_pairs = pair_idxs([HC_val_idxs, HT_val_idxs, IC_val_idxs, IT_val_idxs])
+                    if(cond=="Heard"):
+                        if(timbre=="Clarinet"):
+                            # runs start at 0, 4-7 are the second half
+                            if(int(run_n)<4):
+                                HC_train_idxs.append(idx)
+                            else:
+                                HC_val_idxs.append(idx)
+                        elif(timbre=="Trumpet"):
+                            if(int(run_n)<4):
+                                HT_train_idxs.append(idx)
+                            else:
+                                HT_val_idxs.append(idx)
+
+                    elif (cond=="Imagined") and include_imagined:
+                        if(timbre=="Clarinet"):
+                            if(int(run_n)<4):
+                                IC_train_idxs.append(idx)
+                            else:
+                                IC_val_idxs.append(idx)
+                        elif(timbre=="Trumpet"):
+                            if(int(run_n)<4):
+                                IT_train_idxs.append(idx)
+                            else:
+                                IT_val_idxs.append(idx)
+                if not include_imagined:
+                    IC_train_idxs, IC_val_idxs = None, None
+                    IT_train_idxs, IT_val_idxs = None, None
+                #print("for subject "+str(sub)+", lengths are "+str(len(HC_train_idxs))+", "+str(len(HT_train_idxs))+", "+str(len(IC_train_idxs))+", "+str(len(IT_train_idxs))+", "+str(len(HC_val_idxs))+", "+str(len(HT_val_idxs))+", "+str(len(IC_val_idxs))+", "+str(len(IT_val_idxs))+", ")
+
+            trainidx_pairs = pair_idxs([HC_train_idxs, HT_train_idxs, IC_train_idxs, IT_train_idxs], num_pairs=2)
+            validx_pairs = pair_idxs([HC_val_idxs, HT_val_idxs, IC_val_idxs, IT_val_idxs], num_pairs=1)
 
             # print("trainidx_pairs is "+str(trainidx_pairs))
             # print("validx_pairs is "+str(validx_pairs))
@@ -311,7 +376,7 @@ if __name__ == "__main__":
             print("True and false count for subject "+str(shortsubid)+" were "+str(truecount)+", "+str(falsecount))
             print("Validation split True and false count for subject " + str(shortsubid) + " were " + str(valtruecount) + ", " + str(valfalsecount))
 
-        # save the training data for just this subject in case we want it later
+            # save the training data for just this subject in case we want it later
             sub_save_path = save_path+shortsubid+"_"
             with open(sub_save_path+"X.p", "wb") as temp_fp:
                 pickle.dump(sub_X, temp_fp)
@@ -332,6 +397,7 @@ if __name__ == "__main__":
         # load each subjects's contributions
         for sub in sublist:
             shortsubid = "sid00"+sub
+
             sub_save_path = save_path+shortsubid+"_"
             with open(sub_save_path+"X.p", "rb") as temp_fp:
                 sub_X = pickle.load(temp_fp)

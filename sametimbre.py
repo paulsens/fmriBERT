@@ -18,10 +18,8 @@ import datetime
 
 debug=1
 val_flag=1
-seed=5
-random.seed(seed)
-torch.manual_seed(seed)
-np.random.seed(seed)
+# this seeding is overwritten at the beginning of main if a count value is passed via command line
+
 LR_def=0.0001 #defaults, should normally be set by command line
 voxel_dim=420
 src_pad_sequence = [0] * voxel_dim
@@ -29,14 +27,68 @@ FINETUNE_EPOCHS=10
 BATCH_SIZE=1
 
 if __name__=="__main__":
-    # load the september 26th model on the "both" task, index 3 (starts from 0)
-    # so this is ofile o_4963132 in the ofiles for sept26th "both"
+    # get command line arguments and options
+    opts = [opt for opt in sys.argv[1:] if opt.startswith("-")]
+    args = [arg for arg in sys.argv[1:] if not arg.startswith("-")]
+    if "-m" in opts:
+        # -m "this is the description of the run" will be at the end of the command line call
+        idx= opts.index("-m")
+        run_desc = args[idx]
+    else:
+        run_desc = None
+    print("Command line opts: "+str(opts))
+    print("Command line args: "+str(args))
+
+    if "-pretrain_task" in opts:
+        idx = opts.index("-pretrain_task")
+        # this value will be "fresh" rather than a number if we want to train a fresh model
+        pretrain_task = args[idx]
+
+    else:
+        print("provide the task the desired pretrained weights were trained on, i.e \"-pretrain_task both\" or \"-pretrain_idx fresh\" if training a fresh model. Choices are both, binaryonly, multionly, fresh")
+        quit(0)
+
+    # the index assigned to the loaded model in pretraining
+    if "-pretrain_idx" in opts:
+        idx = opts.index("-pretrain_idx")
+        # this value will be "fresh" rather than a number if we want to train a fresh model
+        # can probably keep this as a string
+        pretrain_idx = args[idx]
+
+        # this is how we'll initialize the RNG seeds
+        #seed = 20 if pretrain_idx=="fresh" else int(pretrain_idx)
+        #random.seed(seed)
+        #torch.manual_seed(seed)
+        #np.random.seed(seed)
+    else:
+        print("assign a pretrain model index to load, i.e \"-pretrain_idx 5\" or \"-pretrain_idx fresh\" if training a fresh model. choices are 0 to 11 inclusive")
+        quit(0)
+
+    # the count in the job submission script's for loop
+    if "-count" in opts:
+        idx = opts.index("-count")
+        thiscount = int(args[idx])
+        print("this count is "+str(thiscount))
+        seed=idx
+        random.seed(seed)
+        torch.manual_seed(seed)
+        np.random.seed(seed)
+    else:
+        thiscount = None
+
+    freeze_pretrained = False
+    if "-freeze_pretrained" in opts:
+        idx = opts.index("-freeze_pretrained")
+        if args[idx]=="True":
+            freeze_pretrained=True
+
+    # env is defined in Constants.py
     if env=="local":
-        pretrained_model_states = "/Volumes/External/opengenre/preproc/trained_models/oct6/both/states_50.pt"
+        pretrained_model_states = "/Volumes/External/opengenre/official/"+pretrain_task+"/states_"+pretrain_idx+".pt"
         data_path = "/Volumes/External/pitchclass/finetuning/sametimbre/datasets/2/"
     if env=="discovery":
-        pretrained_model_states = "/isi/music/auditoryimagery2/seanthesis/opengenre/preproc/trained_models/oct6/binaryonly/states_30.pt"
-        data_path = "/isi/music/auditoryimagery2/seanthesis/pitchclass/finetuning/sametimbre/datasets/3/"
+        pretrained_model_states = "/isi/music/auditoryimagery2/seanthesis/opengenre/official/"+pretrain_task+"/states_"+pretrain_idx+".pt"
+        data_path = "/isi/music/auditoryimagery2/seanthesis/pitchclass/finetuning/sametimbre/datasets/5/"
 
     # load the training and validation data
     with open(data_path+"all_X.p", "rb") as samples_fp:
@@ -92,17 +144,25 @@ if __name__=="__main__":
 
     # create the model
     model = Transformer(next_sequence_labels=2, num_genres=10, src_pad_sequence=src_pad_sequence, max_length=12, voxel_dim=voxel_dim, ref_samples=None, mask_task=None, print_flag=0)
-    # shut off the state loading for baseline
-    model.load_state_dict(torch.load(pretrained_model_states), strict=False)
-    finetune_params = ["output_layer_finetune.1.bias", "output_layer_finetune.1.weight", "output_layer_finetune.0.bias", "output_layer_finetune.0.weight"]
-#    params = model.state_dict()
-#    finetune_tensors = (params[tensor_name] for tensor_name in finetune_params)
 
+
+    # if we want to load pretrained weights:
+    if pretrain_task != "fresh":
+        model.load_state_dict(torch.load(pretrained_model_states), strict=False)
+        if freeze_pretrained:
+            finetune_params = ["output_layer_finetune.1.bias", "output_layer_finetune.1.weight", "output_layer_finetune.0.bias", "output_layer_finetune.0.weight"]
+
+            params = model.state_dict()
+            training_tensors = (params[tensor_name] for tensor_name in finetune_params)
+        else:
+            training_tensors = model.parameters()
+    else:
+        training_tensors = model.parameters()
     model = model.float()
 
     criterion_bin = nn.CrossEntropyLoss()
-    optimizer = optim.Adam(model.parameters(), lr=LR_def, betas=(0.9, 0.999), weight_decay=0.0001)
-    #optimizer = optim.Adam(finetune_tensors, lr=LR_def, betas=(0.9, 0.999), weight_decay=0.0001)
+    # training_tensors is either everything or only the new layers for finetuning when freeze_pretrained is True
+    optimizer = optim.Adam(training_tensors, lr=LR_def, betas=(0.9, 0.999), weight_decay=0.0001)
 
     # train
     for e in range(0, FINETUNE_EPOCHS):

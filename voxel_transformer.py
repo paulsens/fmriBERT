@@ -128,14 +128,15 @@ class TransformerBlock(nn.Module):
         )
         self.dropout = nn.Dropout(dropout)
     def forward(self, value, key, query, mask, block_print_flag=0):
-        if(block_print_flag):
+        if True:
+        #if(block_print_flag):
             print("value is "+str(value))
             print("key is "+str(key))
             print("query is "+str(query))
             print("mask is "+str(mask))
 
         attention, attn_weights = self.attention(query, key, value, average_attn_weights=False)
-
+        print("attention is "+str(attention))
         x = self.dropout(self.norm1(attention + query))
         forward = self.feed_forward(x)
         out = self.dropout(self.norm2(forward + x))
@@ -205,7 +206,9 @@ class Encoder(nn.Module):
 class DecoderBlock(nn.Module):
     def __init__(self, voxel_dim, heads, forward_expansion, dropout, device):
         super(DecoderBlock, self).__init__()
-        self.attention = SelfAttention(voxel_dim, heads)
+        self.attention = nn.MultiheadAttention(voxel_dim, heads, batch_first=True)
+
+        #self.attention = SelfAttention(voxel_dim, heads)
         self.norm = nn.LayerNorm(voxel_dim)
         self.transformer_block = TransformerBlock(
             voxel_dim, heads, dropout, forward_expansion

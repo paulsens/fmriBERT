@@ -290,14 +290,14 @@ def standardize_flattened(voxel_data, token_dims=False):
 
 
         new_mean=new_mean/TRs #mean of shifted data
-        print("mean of shifted data is "+str(new_mean))
+        #print("mean of shifted data is "+str(new_mean))
         new_dev = 0
-        print("in new dev calc, TRs is "+str(TRs))
+        #print("in new dev calc, TRs is "+str(TRs))
         for TR in range(0, TRs):
 
             new_dev+=(stand[TR][channel]-new_mean)**2
-            if TR % 200 == 0:
-                print("new dev for TR " + str(TR) + " is " + str(new_dev))
+            #if TR % 200 == 0:
+                #print("new dev for TR " + str(TR) + " is " + str(new_dev))
         new_dev = sqrt(new_dev/TRs)
 
         #unit variance
@@ -402,6 +402,7 @@ def apply_masks(x, y, ref_samples, hp_dict, mask_variation, ytrue_multi_batch, s
                 ref_idx=ref_idx_right
             ref_idx=int(ref_idx)
             r_action=random.randint(1,100)
+            print("r action is "+str(r_action))
             #if r_action<=10 do nothing
             if 10<r_action<=20: #replace with another TR from the same subject, but not next to it in refsamples
                 r_choice=ref_idx
