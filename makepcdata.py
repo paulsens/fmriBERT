@@ -183,7 +183,7 @@ info_idx = {
 
 #where is the training data?
 data_path = pitchclass_preproc_path
-save_path = "/Volumes/External/pitchclass/finetuning/sametimbre/datasets/7/"
+save_path = "/Volumes/External/pitchclass/finetuning/sametimbre/datasets/8/"
 #just put the sub-sid00xxxx in twice between these
 
 all_X = []
@@ -200,7 +200,7 @@ SEP = [0, 0, 1] + ([0] * (voxel_dim - 3))  # third dimension is reserved for sep
 if __name__ == "__main__":
     do_subjects = True
     do_all = True
-    include_imagined = False
+    include_imagined = True
     # do we want to partition out some percentage of the samples or do we want to hold out runs?
     holdout_runs = True
     # do_subjects will create and pickle each subject separately
@@ -343,7 +343,7 @@ if __name__ == "__main__":
                     IT_train_idxs, IT_val_idxs = None, None
                 #print("for subject "+str(sub)+", lengths are "+str(len(HC_train_idxs))+", "+str(len(HT_train_idxs))+", "+str(len(IC_train_idxs))+", "+str(len(IT_train_idxs))+", "+str(len(HC_val_idxs))+", "+str(len(HT_val_idxs))+", "+str(len(IC_val_idxs))+", "+str(len(IT_val_idxs))+", ")
 
-            trainidx_pairs = pair_idxs([HC_train_idxs, HT_train_idxs, IC_train_idxs, IT_train_idxs], num_pairs=2)
+            trainidx_pairs = pair_idxs([HC_train_idxs, HT_train_idxs, IC_train_idxs, IT_train_idxs], num_pairs=4)
             validx_pairs = pair_idxs([HC_val_idxs, HT_val_idxs, IC_val_idxs, IT_val_idxs], num_pairs=1)
 
             # print("trainidx_pairs is "+str(trainidx_pairs))

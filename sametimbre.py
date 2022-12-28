@@ -69,7 +69,7 @@ if __name__=="__main__":
         idx = opts.index("-count")
         thiscount = int(args[idx])
         print("this count is "+str(thiscount))
-        seed=idx
+        seed=thiscount
         random.seed(seed)
         torch.manual_seed(seed)
         np.random.seed(seed)
@@ -87,7 +87,7 @@ if __name__=="__main__":
         pretrained_model_states = "/Volumes/External/opengenre/official/"+pretrain_task+"/states_"+pretrain_idx+".pt"
         data_path = "/Volumes/External/pitchclass/finetuning/sametimbre/datasets/2/"
     if env=="discovery":
-        pretrained_model_states = "/isi/music/auditoryimagery2/seanthesis/opengenre/official/"+pretrain_task+"/states_"+pretrain_idx+".pt"
+        pretrained_model_states = "/isi/music/auditoryimagery2/seanthesis/opengenre/final/"+pretrain_task+"/states_"+pretrain_idx+"0.pt"
         data_path = "/isi/music/auditoryimagery2/seanthesis/pitchclass/finetuning/sametimbre/datasets/5/"
 
     # load the training and validation data

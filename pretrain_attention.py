@@ -14,7 +14,7 @@ import os
 import datetime
 
 pretrain_idx = 0
-pretrain_task = "both"
+pretrain_task = "multionly"
 voxel_dim=420
 src_pad_sequence = [0] * voxel_dim
 BATCH_SIZE = 1
@@ -32,10 +32,10 @@ if __name__=="__main__":
 
     # env is defined in Constants.py
     if env=="local":
-        pretrained_model_states = "/Volumes/External/opengenre/final/"+pretrain_task+"/states_"+str(pretrain_idx)+".pt"
+        pretrained_model_states = "/Volumes/External/opengenre/final/"+pretrain_task+"/states_"+str(pretrain_idx)+"0.pt"
         data_path = "/Volumes/External/pitchclass/finetuning/sametimbre/datasets/2/"
     if env=="discovery":
-        pretrained_model_states = "/isi/music/auditoryimagery2/seanthesis/opengenre/official/"+pretrain_task+"/states_"+pretrain_idx+".pt"
+        pretrained_model_states = "/isi/music/auditoryimagery2/seanthesis/opengenre/official/"+pretrain_task+"/states_"+pretrain_idx+"0.pt"
         data_path = "/isi/music/auditoryimagery2/seanthesis/pitchclass/finetuning/sametimbre/datasets/5/"
 
     with open(hp_dict["data_path"] + hp_dict["hemisphere"] + "_valsamples" + hp_dict["count"] + ".p",
@@ -80,6 +80,7 @@ if __name__=="__main__":
                 X_batch_val[0][11] = MSK_token
 
             elif count ==1:
+                print("thing being masked is "+str(X_batch_val[0][7]))
                 batch_mask_indices_val = [[7, -1]]
                 X_batch_val[0][7] = MSK_token
 
@@ -90,10 +91,11 @@ if __name__=="__main__":
             X_batch_val[0][0][2] = 0
             y_true = y_batch_val[0]
 
-            print("Xbatchval is "+str(X_batch_val))
+            #print("Xbatchval is "+str(X_batch_val))
+            #print(model)
             ypred_bin_batch_val, ypred_multi_batch_val = model(X_batch_val, batch_mask_indices_val)
-
-            print(ypred_bin_batch_val)
+            #print("batch mask indices val is "+str(batch_mask_indices_val))
+            #print(ypred_bin_batch_val)
             print(ypred_multi_batch_val)
             count+=1
             if count == 2:

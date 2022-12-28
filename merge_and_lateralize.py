@@ -5,7 +5,8 @@ import pickle
 from Constants import *
 
 # CHECK THE SIZE OF YOUR ROI MASK FIRST. THEN DECIDE ON A COOL_DIVIDEND.
-COOL_DIVIDEND=420-3 #LEFT STG HAS 410+3 DIMENSIONS, RIGHT STG HAS 428+3 DIMENSIONS, LET'S MEET AT 420 AFTER 3 TOKEN DIMENSIONS ARE ADDED FURTHER DOWNSTREAM
+NUM_TOKENS = 2 # CLS, SEP, MSK, etc
+COOL_DIVIDEND=420-NUM_TOKENS #LEFT STG HAS 410+3 DIMENSIONS, RIGHT STG HAS 428+3 DIMENSIONS, LET'S MEET AT 420 AFTER 3 TOKEN DIMENSIONS ARE ADDED FURTHER DOWNSTREAM
 
 path1 = "/Volumes/External/"
 path2 = "/preproc/"
@@ -13,11 +14,11 @@ path3 ="/STG_masks/"
 ant_f = "STG_ant_linearresamp.nii.gz"
 post_f = "STG_post_linearresamp.nii.gz"
 
-sublist = ["1088", "1125", "1401", "1410", "1419", "1427", "1541", "1571", "1581", "1660", "1661", "1664", "1665", "1668", "1672", "1678", "1680"]
-dataset = "pitchclass"
+# sublist = ["1088", "1125", "1401", "1410", "1419", "1427", "1541", "1571", "1581", "1660", "1661", "1664", "1665", "1668", "1672", "1678", "1680"]
+# dataset = "pitchclass"
 
-# sublist = ["1", "2", "3", "4", "5"]
-# dataset = "opengenre"
+sublist = ["1", "2", "3", "4", "5"]
+dataset = "opengenre"
 
 #just for testing
 #dataset = "pitchclass"
@@ -109,8 +110,8 @@ for sub in sublist:
                 this_z=cand[3]
                 volume[this_x][this_y][this_z]=0 #remove that voxel from the mask
 
-    left_p = open(fullpath+"STGbinary_left_t"+str(threshold)+".p","wb")
-    right_p = open(fullpath+"STGbinary_right_t"+str(threshold)+".p","wb")
+    left_p = open(fullpath+"STGbinary_left_t"+str(threshold)+"_"+str(NUM_TOKENS)+"tokens.p","wb")
+    right_p = open(fullpath+"STGbinary_right_t"+str(threshold)+"_"+str(NUM_TOKENS)+"tokens.p","wb")
 
     pickle.dump(lefthemi,left_p)
     pickle.dump(righthemi,right_p)

@@ -2,12 +2,12 @@
 # index of saved from from 0 to 11 inclusive
 index = 0
 # task is either binaryonly, multionly, or both
-evaltask = "both"
-basepath = "/Volumes/External/opengenre/saveloadtest/2/"
-state_path = "/Volumes/External/opengenre/preproc/trained_models/"+str(evaltask)+"/sep26/"
-state_file = state_path+"states_"+str(index)+"0.pt"
+evaltask = "multionly"
+#basepath = "/Volumes/External/opengenre/saveloadtest/2/"
+#state_path = "/Volumes/External/opengenre/preproc/trained_models/"+str(evaltask)+"/sep26/"
+#state_file = state_path+"states_"+str(index)+"0.pt"
 #model_file = "/isi/music/auditoryimagery2/seanthesis/opengenre/preproc/trained_models/binaryonly/oct1/full_52.pt"
-model_file =  "/Volumes/External/opengenre/final/"+evaltask+"/states_"+str(index)+".pt"
+model_file =  "/Volumes/External/opengenre/round1/final/"+evaltask+"/states_"+str(index)+"0.pt"
 
 import torch
 import torch.nn as nn
@@ -15,7 +15,7 @@ import random
 from random import randint
 import numpy as np
 from helpers import *
-from voxel_transformer import *
+from voxel_transformer_print import *
 from pitchclass_data import *
 from torch.utils.data import DataLoader, Subset
 from sklearn.model_selection import train_test_split
@@ -89,7 +89,7 @@ if __name__ == "__main__":
         #dictionary of hyperparameters, eventually should probably come from command line
         hp_dict={
 
-            "task":"binaryonly",
+            "task":"multionly",
             "binary":"nextseq", #same_genre or nextseq
             "mask_task":"reconstruction",
             "COOL_DIVIDEND" : COOL_DIVIDEND,
@@ -132,22 +132,23 @@ if __name__ == "__main__":
         else:
             logcount=0
         #logfile = today_dir + "pretrainlog_"+str(logcount)+".txt"
-        logfile = basepath + "pretrainlog_"+str(logcount)+".txt"
+        #logfile = basepath + "pretrainlog_"+str(logcount)+".txt"
+        logfile=None
 
-        while (os.path.exists(logfile)):
-            logcount+=1
-            #logfile = today_dir + "pretrainlog_" + str(logcount) + ".txt"
-            logfile = basepath + "pretrainlog_" + str(logcount) + ".txt"
+        # while (os.path.exists(logfile)):
+        #     logcount+=1
+        #     #logfile = today_dir + "pretrainlog_" + str(logcount) + ".txt"
+        #     logfile = basepath + "pretrainlog_" + str(logcount) + ".txt"
 
-        log = open(logfile,"w")
-        log.write(str(now)+"\n")
+        # log = open(logfile,"w")
+        # log.write(str(now)+"\n")
         # run_desc is potentially given in command line call
-        if(run_desc is not None):
-            log.write(run_desc+"\n\n")
-            print(run_desc+"\n\n")
+        # if(run_desc is not None):
+        #     log.write(run_desc+"\n\n")
+        #     print(run_desc+"\n\n")
         #write hyperparameters to log
-        for hp in hp_dict.keys():
-            log.write(str(hp)+" : "+str(hp_dict[hp])+"\n")
+        # for hp in hp_dict.keys():
+        #     log.write(str(hp)+" : "+str(hp_dict[hp])+"\n")
 
         #load samples and labels
         with open(hp_dict["data_path"] + hp_dict["hemisphere"] + "_samples"+hp_dict["count"]+".p", "rb") as samples_fp:
@@ -202,14 +203,14 @@ if __name__ == "__main__":
         train_loader = DataLoader(dataset=all_data, batch_size=hp_dict["BATCH_SIZE"], shuffle=True) #make the DataLoader object
         if val_X is not None:
             val_loader = DataLoader(dataset=val_data, batch_size=hp_dict["BATCH_SIZE"], shuffle=False)
-        log.write("voxel dim is "+str(voxel_dim)+"\n\n")
+       # log.write("voxel dim is "+str(voxel_dim)+"\n\n")
         MSK_token = [0, 1] + ([0] * (voxel_dim - 2))  # second dimension is reserved for msk_token flag
         MSK_token = np.array(MSK_token)
         MSK_token = torch.from_numpy(MSK_token)
 
         binary_task_labels = 2 #two possible labels for same genre task, yes or no
         num_genres = 10 #from the training set
-
+        log=None
         src_pad_sequence = [0]*voxel_dim
 
         model = Transformer(next_sequence_labels=binary_task_labels, num_genres=num_genres, src_pad_sequence=src_pad_sequence, max_length=max_length, voxel_dim=voxel_dim, ref_samples=ref_samples, mask_task=hp_dict["mask_task"]).to(hp_dict["device"])
@@ -217,7 +218,8 @@ if __name__ == "__main__":
         model = model.float()
         #model.to(hp_dict["device"])
         model.print_flag = 0
-
+        print(model)
+        quit(0)
         criterion_bin = nn.CrossEntropyLoss()
         if hp_dict["mask_task"]=="genre_decode":
             criterion_multi = nn.CrossEntropyLoss()
@@ -260,7 +262,7 @@ if __name__ == "__main__":
                     ytrue_dist_multi1 = np.zeros((10,))  # we want a one-hot probability distrubtion over the 10 genre labels
                     ytrue_dist_multi2 = np.zeros((10,))  # only used when this sample gets two masks/replacements
                     #no return value from apply_masks, everything is updated by reference in the lists
-                    apply_masks(X_batch[x], y_batch[x], ref_samples, hp_dict, mask_variation, ytrue_multi_batch, sample_dists, ytrue_dist_multi1, ytrue_dist_multi2, batch_mask_indices, sample_mask_indices, mask_task=hp_dict["mask_task"], log=log, heldout=False)
+                    apply_masks(X_batch[x], y_batch[x], ref_samples, hp_dict, mask_variation, ytrue_multi_batch, sample_dists, ytrue_dist_multi1, ytrue_dist_multi2, batch_mask_indices, sample_mask_indices, mask_task=hp_dict["mask_task"], log=None, heldout=False)
 
                 for y in range(0,hp_dict["BATCH_SIZE"]):
                     if(y_batch[y][0]):
@@ -297,10 +299,10 @@ if __name__ == "__main__":
 
                 ypred_bin_batch = ypred_bin_batch.float()
                 ypred_multi_batch = ypred_multi_batch.float()
-                log.write("ypred_multi_batch has shape "+str(ypred_multi_batch.shape)+"\n and ytrue_multi_batch has shape "+str(ytrue_multi_batch.shape))
-                log.write("For binary classification, predictions are "+str(ypred_bin_batch)+" and true labels are "+str(ytrue_bin_batch)+"\n")
+                #log.write("ypred_multi_batch has shape "+str(ypred_multi_batch.shape)+"\n and ytrue_multi_batch has shape "+str(ytrue_multi_batch.shape))
+                #log.write("For binary classification, predictions are "+str(ypred_bin_batch)+" and true labels are "+str(ytrue_bin_batch)+"\n")
                 loss_bin = criterion_bin(ypred_bin_batch, ytrue_bin_batch)
-                log.write("The loss in that case was "+str(loss_bin)+"\n")
+                #log.write("The loss in that case was "+str(loss_bin)+"\n")
                 #log.write("For genre classification, predictions are "+str(ypred_multi_batch)+" and true labels are "+str(ytrue_multi_batch)+"\n")
                 loss_multi = criterion_multi(ypred_multi_batch, ytrue_multi_batch)
                 #log.write("The loss in that case was "+str(loss_multi)+"\n\n")
@@ -476,17 +478,17 @@ if __name__ == "__main__":
             print("bin neg sample count: "+str(bin_neg_count_train))
             print("number of samples: "+str(len(train_loader)))
 
-            log.write(f'Epoch {e+0:03}: | Loss: {epoch_loss/len(train_loader):.5f} | Acc: {epoch_acc/len(train_loader):.3f} | Acc2: {epoch_acc2/len(train_loader):.3f}')
+           # log.write(f'Epoch {e+0:03}: | Loss: {epoch_loss/len(train_loader):.5f} | Acc: {epoch_acc/len(train_loader):.3f} | Acc2: {epoch_acc2/len(train_loader):.3f}')
             if(hp_dict["task"]=="both"):
                 print("Bin loss was "+str(loss_bin)+ " and multi loss was "+str(loss_multi))
-                log.write("Bin loss was "+str(loss_bin)+ " and multi loss was "+str(loss_multi))
+               # log.write("Bin loss was "+str(loss_bin)+ " and multi loss was "+str(loss_multi))
             if val_X is not None:
                 print(f'Validation: | Loss: {val_loss/len(val_loader):.5f} | Acc: {val_acc/len(val_loader):.3f} | Acc2: {val_acc2/len(val_loader):.3f}')
-                log.write(f'Validation: | Loss: {val_loss/len(val_loader):.5f} | Acc: {val_acc/len(val_loader):.3f} | Acc2: {val_acc2/len(val_loader):.3f}')
+                #log.write(f'Validation: | Loss: {val_loss/len(val_loader):.5f} | Acc: {val_acc/len(val_loader):.3f} | Acc2: {val_acc2/len(val_loader):.3f}')
 
                 if(hp_dict["task"]=="both"):
                     print("Bin val loss was " + str(loss_bin_val) + " and multi val loss was " + str(loss_multi_val))
-                    log.write("Bin loss was " + str(loss_bin_val) + " and multi loss was " + str(loss_multi_val))
+                    #log.write("Bin loss was " + str(loss_bin_val) + " and multi loss was " + str(loss_multi_val))
                 print("Epoch bin val stats:\n")
                 print("correct counts for this epoch: " + str(bin_correct_val))
                 print("bin neg sample count: " + str(bin_neg_count_val))

@@ -99,7 +99,8 @@ class SelfAttention(nn.Module):
 class TransformerBlock(nn.Module):
     def __init__(self, voxel_dim, heads, dropout, forward_expansion):
         super(TransformerBlock, self).__init__()
-        self.attention = SelfAttention(voxel_dim, heads)
+        #self.attention = SelfAttention(voxel_dim, heads)
+        self.attention = nn.MultiheadAttention(voxel_dim, heads, batch_first=True)
         self.norm1 = nn.LayerNorm(voxel_dim)
         self.norm2 = nn.LayerNorm(voxel_dim)
         self.feed_forward = nn.Sequential(
@@ -109,7 +110,7 @@ class TransformerBlock(nn.Module):
         )
         self.dropout = nn.Dropout(dropout)
     def forward(self, value, key, query, mask, block_print_flag=0):
-        attention = self.attention(value, key, query, mask, block_print_flag)
+        attention, attn_weights = self.attention(value, key, query, average_attn_weights=False)
         if(block_print_flag):
             print("value is "+str(value))
             print("key is "+str(key))
@@ -297,8 +298,9 @@ class Transformer(nn.Module):
             nn.Linear(voxel_dim, voxel_dim),
         )
         self.output_layer_finetune = nn.Sequential(
-            nn.Linear(voxel_dim, voxel_dim//2),
-            nn.Linear(voxel_dim//2, next_sequence_labels),
+            # nn.Linear(voxel_dim, voxel_dim//2),
+            # nn.Linear(voxel_dim//2, next_sequence_labels),
+            nn.Linear(voxel_dim,next_sequence_labels),
             nn.Softmax(dim=1)
             #nn.ReLU()
 

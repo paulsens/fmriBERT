@@ -228,6 +228,10 @@ if __name__ == "__main__":
             epoch_loss = 0
             epoch_acc = 0
             epoch_acc2 = 0
+            epoch_tbin_loss = 0
+            epoch_vbin_loss = 0
+            epoch_tmulti_loss = 0
+            epoch_vmulti_loss = 0
 
             for X_batch, y_batch in train_loader:
                 batch_mask_indices = []
@@ -312,6 +316,8 @@ if __name__ == "__main__":
                     #     acc = 0 #placeholder until i figure out how to do accuracy for non-genre-decoding tasks
                 elif hp_dict["task"]=="both":
                     loss = (loss_bin*bintask_weight) + (loss_multi*multitask_weight) #as per devlin et al, loss is the average of the two tasks' losses, in which case both weights would be 0.5
+                    epoch_tbin_loss += loss_bin.item()
+                    epoch_tmulti_loss += loss_multi.item()
                     acc1 = get_accuracy(ypred_bin_batch, ytrue_bin_batch, hp_dict["binary"], log)
                     acc2 = get_accuracy(ypred_multi_batch, ytrue_multi_batch, hp_dict["mask_task"], log)
                 #log.write("The total loss this iteration was "+str(loss)+"\n\n")
@@ -420,8 +426,10 @@ if __name__ == "__main__":
                             #     acc = get_accuracy(ypred_multi_batch, ytrue_multi_batch, log)
                             # else: acc = 0
                         elif hp_dict["task"]=="both":
-                            loss = (loss_bin * bintask_weight) + (
-                                        loss_multi * multitask_weight)  # as per devlin et al, loss is the average of the two tasks' losses, in which case both weights would be 0.5
+                            loss = (loss_bin_val * bintask_weight) + (
+                                        loss_multi_val * multitask_weight)  # as per devlin et al, loss is the average of the two tasks' losses, in which case both weights would be 0.5
+                            epoch_vbin_loss+= loss_bin_val.item()
+                            epoch_vmulti_loss+=loss_multi_val.item()
                             acc1 = get_accuracy(ypred_bin_batch_val, ytrue_bin_batch_val, hp_dict["binary"],log)
                             acc2 = get_accuracy(ypred_multi_batch_val, ytrue_multi_batch_val, hp_dict["mask_task"], log)
                         # log.write("The total loss this iteration was "+str(loss)+"\n\n")
@@ -448,15 +456,15 @@ if __name__ == "__main__":
 
             log.write(f'Epoch {e+0:03}: | Loss: {epoch_loss/len(train_loader):.5f} | Acc: {epoch_acc/len(train_loader):.3f} | Acc2: {epoch_acc2/len(train_loader):.3f}')
             if(hp_dict["task"]=="both"):
-                print("Bin loss was "+str(loss_bin)+ " and multi loss was "+str(loss_multi))
-                log.write("Bin loss was "+str(loss_bin)+ " and multi loss was "+str(loss_multi))
+                print("Bin loss was "+str(epoch_tbin_loss/len(train_loader))+ " and multi loss was "+str(epoch_tmulti_loss/len(train_loader)))
+                log.write("Bin loss was "+str(epoch_tbin_loss/len(train_loader))+ " and multi loss was "+str(epoch_tmulti_loss/len(train_loader)))
             if val_X is not None:
                 print(f'Validation: | Loss: {val_loss/len(val_loader):.5f} | Acc: {val_acc/len(val_loader):.3f} | Acc2: {val_acc2/len(val_loader):.3f}')
                 log.write(f'Validation: | Loss: {val_loss/len(val_loader):.5f} | Acc: {val_acc/len(val_loader):.3f} | Acc2: {val_acc2/len(val_loader):.3f}')
 
                 if(hp_dict["task"]=="both"):
-                    print("Bin val loss was " + str(loss_bin_val) + " and multi val loss was " + str(loss_multi_val))
-                    log.write("Bin loss was " + str(loss_bin_val) + " and multi loss was " + str(loss_multi_val))
+                    print("Bin val loss was " + str(epoch_vbin_loss/len(val_loader)) + " and multi val loss was " + str(epoch_vmulti_loss/len(val_loader)))
+                    log.write("Bin loss was " + str(epoch_vbin_loss/len(val_loader)) + " and multi loss was " + str(epoch_vmulti_loss/len(val_loader)))
                 print("Epoch bin val stats:\n")
                 print("correct counts for this epoch: " + str(bin_correct_val))
                 print("bin neg sample count: " + str(bin_neg_count_val))
@@ -475,13 +483,13 @@ if __name__ == "__main__":
         #     if param.requires_grad:
         #         print(name, param.data)
         modelcount=0
-        model_path = opengenre_preproc_path+"trained_models/nov7/"+str(hp_dict["task"])+"/states_"+str(thiscount)+str(modelcount)+".pt"
+        model_path = "/isi/music/auditoryimagery2/seanthesis/opengenre/final/"+str(hp_dict["task"])+"/states_"+str(thiscount)+str(modelcount)+".pt"
         while(os.path.exists(model_path)):
             modelcount+=1
-            model_path = opengenre_preproc_path+"trained_models/nov7/"+str(hp_dict["task"])+"/states_"+str(thiscount)+str(modelcount)+".pt"
+            model_path = "/isi/music/auditoryimagery2/seanthesis/opengenre/final/"+str(hp_dict["task"])+"/states_"+str(thiscount)+str(modelcount)+".pt"
 
         torch.save(model.state_dict(),model_path)
-        model_path = opengenre_preproc_path + "trained_models/nov7/"+str(hp_dict["task"])+"/full_" + str(thiscount) + str(
+        model_path = "/isi/music/auditoryimagery2/seanthesis/opengenre/final/"+str(hp_dict["task"])+"/full_" + str(thiscount) + str(
             modelcount) + ".pt"
         torch.save(model,model_path)
 

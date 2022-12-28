@@ -128,15 +128,16 @@ class TransformerBlock(nn.Module):
         )
         self.dropout = nn.Dropout(dropout)
     def forward(self, value, key, query, mask, block_print_flag=0):
-        if True:
-        #if(block_print_flag):
+        #if True:
+        if(block_print_flag):
             print("value is "+str(value))
             print("key is "+str(key))
             print("query is "+str(query))
             print("mask is "+str(mask))
 
         attention, attn_weights = self.attention(query, key, value, average_attn_weights=False)
-        print("attention is "+str(attention))
+        #print("attention is "+str(attention))
+        #print("attention weights is "+str(attn_weights))
         x = self.dropout(self.norm1(attention + query))
         forward = self.feed_forward(x)
         out = self.dropout(self.norm2(forward + x))

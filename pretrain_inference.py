@@ -1,106 +1,10 @@
-BOTH={
-"fifth_epoch":[
-"78.629 .999 3346,4509 .3133 .0003 57.75 1.0 .542 .0006 306,156",
-"77.497 .999 3276,4466 .3133 .0002 79 1.0 .3142 .0009 236,396",
-"76.106 .999 3256,4347 .3137 .00005 64.5 1.0 .3485 .0004 277,239",
-"76.747 .999 3264,4403, .3133 .0005 79.25 1.0 .3135 .0003 252,382",
-"78.929 .999 3382,4503 .3133 .0009 64.625 .999 1.313 .0011 285,232",
-"79.109 .999 3437,4466 .3133 .0063 79.125 1.0 1.3133 .0008 265, 368",
-"77.878 .999 3358,4422 .3133 .0033 63.75 1.0 .3133 .0012 291,219",
-"77.898 .999 3381,4401 1.3132 .0002 71.375 1.0 1.3131 .0003 273,298",
-"78.218 .999 3380,4434 1.3132 .0003 60.125 1.0 .9973 .0007 315,166",
-"78.709 .999 3329,4534 1.3124 .0005 57.25 1.0 .315 .00004 273,185",
-"78.288 .999 3410,4411 1.3132 .0006 49.75 1.0 .3133 .00004 336,62",
-"77.64 .999 3342,4422 .3166 .0007 45.57 1.0 1.1766 .0004 337,23"
-]
-    ,
-"first_epoch":[
-"61.251 .994 2850,3269 .3328 .0003 68.5 1.0 .4831 .0025 232,316",
-"58.959 .994 2930,2960 .3362 .0011 72 .999 .5782 .0009 261,315",
-"57.037 .994 2843,2855 .3595 .0002 61.75 1.0 .4422 .0002 335,159",
-"58.959 .994 2904,2986 .3210 .003 73.5 1.0 .4392 .0011 260,328",
-"60.951 .994 2802,3287 .3204 .0001 69.25 1.0 1.1957 .0008 249,305",
-"60.981 .994 2819,3273 .3404 .0006 73 1.0 .9334 .0002 269,315",
-"61.792 .994 2824,3349 .3187 .0006 68.5 1.0 .3210 .0004 222,326",
-"61.081 .994 2904,3198 .3222 .0009 72.375 1.0 1.0258 .0004 283,296",
-"61.341 .994 2888,3240 .3230 .0002 62.5 .999 1.0505 .0029 285,215",
-"61.972 .994 2858,3333 .3260 .001 54.625 1.0 .5592 .0028 320,117",
-"62.402 .994 2859,3375 .3172 .0012 49.375 .999 .3142 .0002 361,34",
-"63.410 .994 3091,3250 .3165 .0024 49.114 1.0 .5446 .0003 285,103",
-]
-}
+from pretrain_results import *
 
-NTP={
-    "fifth_epoch":[
-    ".53212 77.758 3151,4617 .61431 69.5 284,272",
-    ".53057 77.868 3243,4536 .60844 70 231,329",
-    ".55187 75.916 3302,4282 .69382 61.375 247,244",
-    ".51626 79.319 3285,4639 .53888 75.625 273,332",
-    ".53456 77.417 3297,4437 .62323 68.875 309,242",
-    ".51576 79.239 3323,4593 .51759 79.125 263,370",
-    ".52483 78.358 3290,4538 .52357 78.625 252,377",
-    ".52194 78.609 3319,4534 .59474 70.75 290,276",
-    ".53162 77.888 3349,4432 .64797 66 287,241",
-    ".52221 78.789 3316,4555 .75250 54.750 303,135",
-    ".52617 78.539 3252,4594 .83724 47 291,85",
-    ".54774 76.09 3312,4297 .88553 42.405 332,3",
-    ]
-,
-"first_epoch":[
-".62827 64.575 2804,3647 .58668 72.25 237,341",
-".6358 63.994 2871,3522 .60061 70.5 215,349",
-".63549 64.585 3001,3451 .60425 70.125 200,361",
-".64843 62.763 2802,3468 .57945 72.5 249,331",
-".63882 63.644 2686,3672 .71764 54.25 267,167",
-".64471 63.083 2710,3592 .61998 64.125 318,195",
-".6404 63.453 2768,3571 .57255 73.375 276,311",
-".64079 63.393 2728,3605 .65786 63 331,171",
-".63631 64.464 2766,3674 .65061 62.5 202,298",
-".63179 64.755 2850,3619 .73930 56.875 345,110",
-".63706 63.934 2806,3581 .83551 46.625 327,46",
-".62799 66.03 3233,3370 .80678 49.62 214,178"
-]
-}
 
-MBM={
-"fifth_epoch":[
-".00166 .998 .00038 1.0",
-".00151 .999 .00099 1.0",
-".00159 .999 .00035 1.0",
-".00168 .998 .00065 1.0",
-".00167 .998 .00086 1.0",
-".00152 .999 .00036 1.0",
-".00159 .999 .0003 1.0",
-".00164 .999 .00076 .999",
-".00161 .999 .00043 1.0",
-".00160 .999 .00028 1.0",
-".00169 .998 .00032 1.0",
-".00157 .999 .0007 1.0"
-    ],
-
-"first_epoch":[
-".00465 .995 .0013 1.0",
-".00467 .995 .00243 1.0",
-".00468 .995 .00074 1.0",
-".00470 .995 .00109 1.0",
-".00470 .995 .00086 1.0",
-".00467 .995 .00044 1.0",
-".00469 .995 .00113 1.0",
-".00467 .995 .00083 1.0",
-".00466 .995 .00051 1.0",
-".00471 .994 .00165 1.0",
-".00468 .995 .00052 1.0",
-".00470 .994 .0008 1.0"
-    ]
-}
-
-BOTH_keys = ["train_ntpacc", "train_mbmacc", "train_correct", "train_ntploss", "train_mbmloss", "val_ntpacc", "val_mbmacc", "val_ntploss", "val_mbmloss", "val_correct"]
 BOTH_dict = {}
 
-NTP_keys = ["train_ntploss", "train_ntpacc", "train_correct", "val_nptloss", "val_ntpacc", "val_correct"]
 NTP_dict = {}
 
-MBM_keys = ["train_mbmloss", "train_mbmacc", "val_mbmloss", "val_mbmacc"]
 MBM_dict = {}
 
 for i in range(0, len(BOTH_keys)):
@@ -143,12 +47,64 @@ def get_average(folds_dict, task_dict, key, epoch_key, task):
     if avg2 is not None:
         avg2 = avg2/count
         print(avg2)
-    print("\n")
+
+def get_averages(task, key_list, epoch_key="first_epoch"):
+    averages = {}
+    for key in key_list:
+        if "correct" in key:
+            averages[key]=[0,0]
+        else:
+            averages[key]=0
+
+    for key in averages.keys():
+        count = 0
+        result_list = task[epoch_key]
+        index = list(averages.keys()).index(key)
+
+        for cycle in range(0,len(result_list)):
+            cycle_info = result_list[cycle]
+            info_list = cycle_info.split(" ")
+            value = info_list[index]
+
+            if "correct" in key:
+                both = value.split(",")
+                averages[key][0]+=float(both[0])
+                averages[key][1]+=float(both[1])
+
+            else:
+                averages[key]+=float(value)
+            count+=1
+
+        if "correct" in key:
+            averages[key][0]=averages[key][0]/count
+            averages[key][1]=averages[key][1]/count
+        else:
+            averages[key]=averages[key]/count
+    return averages
+
+def sort_cycles(task, key_list, sort_key, epoch_key="fifth_epoch"):
+    result_list = task[epoch_key]
+    sort_idx =  key_list.index(sort_key)
+    pairs = []
+    for cycle in range(0, len(result_list)):
+        info_list = result_list[cycle].split(" ")
+        value = float(info_list[sort_idx])
+        this_tuple=(value,cycle)
+        pairs.append(this_tuple)
+
+    sorted_pairs = sorted(pairs)
+    return sorted_pairs
 
 epoch_key = "first_epoch"
-get_average(BOTH, BOTH_dict, "train_mbmloss", epoch_key, "BOTH")
-get_average(MBM, MBM_dict, "train_mbmloss", epoch_key, "MBM")
-get_average(BOTH, BOTH_dict, "val_mbmloss", epoch_key, "BOTH")
-get_average(MBM, MBM_dict, "val_mbmloss", epoch_key, "MBM")
-
-
+# get_average(BOTH, BOTH_dict, "tb_acc", epoch_key, "BOTH")
+# get_average(NTPe5, NTP_dict, "tb_acc", epoch_key, "NTP")
+# get_average(BOTH, BOTH_dict, "vb_acc", epoch_key, "BOTH")
+# get_average(NTPe5, NTP_dict, "vb_acc", epoch_key, "NTP")
+# print(get_averages(BOTH, BOTH_keys))
+# print(get_averages(NTPe4, NTP_keys))
+# print(get_averages(NTPe5, NTP_keys))
+# print(get_averages(MBM, MBM_keys))
+task = BOTH
+keys = BOTH_keys
+sort_key = "vb_acc"
+print(sort_cycles(task, keys, sort_key, epoch_key=epoch_key))

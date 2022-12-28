@@ -84,7 +84,8 @@ if env == "local":
 elif env == "discovery":
     PRETRAIN_LOG_PATH = "/isi/music/auditoryimagery2/seanthesis/pretrain_logs/"
 
-COOL_DIVIDEND=420-3 #sweetspot for voxel space dimension, will vary by ROI, but STG is 420 (after the 3 token dimensions are inserted)
+NUM_TOKENS = 2 # CLS AND MSK, plus SEP if you're doing paired inputs, otherwise just 2
+COOL_DIVIDEND=420-NUM_TOKENS #sweetspot for voxel space dimension, will vary by ROI, but STG is 420 (after the 3 token dimensions are inserted)
 
 val_split = 0.1
 

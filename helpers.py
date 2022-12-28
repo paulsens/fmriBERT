@@ -34,7 +34,7 @@ class TrainData(Dataset):
 # create pickled lists of genre labels as strings and indices based on the events.tsv files from opengenre dataset
 def make_opengenre_labels():
     # Loop through subjects
-    # The order of clips is the same for each subject(?) so we don't really need to read each subject's tsv files separately
+    # The order of clips is the same for each subject so we don't really need to read each subject's tsv files separately
     # But we do need to pickle the list for each subject separately so whatever.
     for sub in ["001", "002", "003", "004", "005"]:
         filedir = opengenre_events_path+"sub-"+sub+"/func/"
@@ -135,7 +135,7 @@ def stack_opengenre_labels(verbose=1):
 #hemisphere is either "left" or "right"
 #include token dims tells us whether to insert 3 extra dimensions at the front of the lists to be used by pretraining tokens
 #  i.e if you are going to be pretraining with fmribert, this should be set to True.
-def mask_flatten_combine_opengenre(hemisphere, threshold, set="pitchclass", include_token_dims=1, verbose=0):
+def mask_flatten_combine_opengenre(hemisphere, threshold, set="opengenre", include_token_dims=1, verbose=1, NUM_TOKENS=2):
     # Loop through subjects
     sublist=None
     if(set=="pitchclass"):
@@ -152,7 +152,7 @@ def mask_flatten_combine_opengenre(hemisphere, threshold, set="pitchclass", incl
         subdir = preproc_path + "sub-sid" + sub + "/" + "sub-sid" + sub + "/"
 
         #load binary mask
-        mask_fp = open(subdir + "STG_masks/STGbinary_"+hemisphere+"_t"+threshold+".p","rb")
+        mask_fp = open(subdir + "STG_masks/STGbinary_"+hemisphere+"_t"+threshold+"_"+str(NUM_TOKENS)+"tokens.p","rb")
         mask = pickle.load(mask_fp)
 
         #the mask is (65,77,65) so rather than keeping that all in memory, let's get a list of the coordinates we want to extract
@@ -169,7 +169,7 @@ def mask_flatten_combine_opengenre(hemisphere, threshold, set="pitchclass", incl
         mask_fp.close()
 
         #save voxel list just in case
-        with open(subdir + "STG_masks/voxellist_"+hemisphere+"_t"+threshold+".p","wb") as voxel_fp:
+        with open(subdir + "STG_masks/voxellist_"+hemisphere+"_t"+threshold+"_"+str(NUM_TOKENS)+"tokens.p","wb") as voxel_fp:
             pickle.dump(voxel_list,voxel_fp)
 
         #optional print messages, default is True
@@ -215,7 +215,13 @@ def mask_flatten_combine_opengenre(hemisphere, threshold, set="pitchclass", incl
                     #array to hold flattened ROI data at timestep t
                     # add three extra dimensions for pretraining tokens if flag is set
                     if(include_token_dims):
-                        flattened_t = [0,0,0]
+                        if(NUM_TOKENS==2):
+                            flattened_t = [0,0]
+                        elif(NUM_TOKENS==3):
+                            flattened_t = [0,0,0]
+                        else:
+                            print("invalid NUM_TOKENS, quitting...")
+                            quit(0)
                     else:
                         flattened_t = []
                     #each element of voxel_list is a tuple of coordinates in 3d space
@@ -231,7 +237,7 @@ def mask_flatten_combine_opengenre(hemisphere, threshold, set="pitchclass", incl
             print("Each element of masked_data has length "+str(len(masked_data[0]))+".\n")
 
         # save masked_data
-        with open(subdir+"STG_allruns"+hemisphere+"_t"+threshold+".p","wb") as stacked_fp:
+        with open(subdir+"STG_allruns"+hemisphere+"_t"+threshold+"_"+str(NUM_TOKENS)+"tokens.p","wb") as stacked_fp:
             pickle.dump(masked_data, stacked_fp)
 
         if(verbose):
@@ -266,10 +272,11 @@ def get_accuracy(y_pred, y_true, task, log=None):
 #calculate mean of each channel across timesteps and subtract it from each timestep
 #calculate new standard deviation of each channel and divide each timestep by that amount
 #voxel data should already be TRs by COOL_DIVIDEND after accounting for test_copies
-def standardize_flattened(voxel_data, token_dims=False):
+def standardize_flattened(voxel_data, token_dims=True):
     stand = copy.deepcopy(voxel_data)
 
     TRs = len(voxel_data)
+
     channels = len(voxel_data[0])
     if token_dims:
         loopstart=3
@@ -296,6 +303,7 @@ def standardize_flattened(voxel_data, token_dims=False):
         for TR in range(0, TRs):
 
             new_dev+=(stand[TR][channel]-new_mean)**2
+
             #if TR % 200 == 0:
                 #print("new dev for TR " + str(TR) + " is " + str(new_dev))
         new_dev = sqrt(new_dev/TRs)
@@ -628,8 +636,9 @@ if __name__=="__main__":
     # uses the binary masks to grab data, fixes x first then y then z, so flattens in the reverse order
     #  combines all 8 runs for each subject, note first 10 of 410 TRs in each run are dummy data and not used
     #   pass in the hemisphere and the probability inclusion threshold as a string, and optional verbose parameter, default is True
-    mask_flatten_combine_opengenre("left", "23")
-    mask_flatten_combine_opengenre("right", "23")
+    NUM_TOKENS = 2 # CLS, SEP, MSK, etc
+    mask_flatten_combine_opengenre("left", "23", NUM_TOKENS=NUM_TOKENS)
+    mask_flatten_combine_opengenre("right", "23", NUM_TOKENS=NUM_TOKENS)
     #make_pretraining_data("23", "left")
     #print("none")
 

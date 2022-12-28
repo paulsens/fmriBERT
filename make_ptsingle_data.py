@@ -21,35 +21,33 @@ random_numbers=[]
 #   the third is the length of each half of the sample either 5 or 10, num_copies is the number of positive and negative training samples to create from each left-hand reference sample, test_copies is the number of repetitions we want from the -test- runs, from 1 to 4. Recall that each test run is the same 10 clips repeated four times. Default is 1, i.e each set of 10 only once/only the first ten from each test run.
 #     The second to last two determine the CLS and MSK tasks that will be trained on.
 # the default allowed genres is all of them, 0 to 9 inclusive
-def make_ptdcrossval_data(threshold, hemisphere,  allowed_genres, seq_len=5, num_copies=1, test_copies=1, val_copies=1, standardize=1, detrend="linear", within_subjects=1, binary="nextseq", mask_task="genre_decode", seed=3, val_flag=0, verbose=1):
+def make_ptdsingle_data(threshold, hemisphere,  allowed_genres, seq_len=5, num_copies=1, include_test=1, test_copies=1, val_copies=1, standardize=1, detrend="linear", within_subjects=1, binary="arrowoftime", mask_task="reconstruct", seed=3, val_flag=0, verbose=1):
     #runs_dict is defined in Constants.py
     test_runs = runs_dict["Test"]
     training_runs = runs_dict["Training"]
  # for testing that needs reproducibility
 
     #size of left or right STG voxel space, with 3 token dimensions already added in
-    voxel_dim = COOL_DIVIDEND+3 #defined in Constants.py
+    voxel_dim = COOL_DIVIDEND+NUM_TOKENS #defined in Constants.py
     CLS = [1] + ([0] * (voxel_dim - 1))  # first dimension is reserved for cls_token flag
     MSK = [0, 1] + ([0] * (voxel_dim - 2))  # second dimension is reserved for msk_token flag
-    SEP = [0, 0, 1] + ([0] * (voxel_dim - 3))  # third dimension is reserved for sep_token flag
-
+    # count the total number of samples for each direction, should be roughly the same
+    reverse_count = 0
+    forward_count = 0
     if val_flag:
         holdout_range=range(0,12)
     else:
         holdout_range=range(0,1)
 
-
+    random.seed(seed) #seed is passed in as a parameter, defaults to 3
     for holdout in holdout_range:
-        random.seed(seed) #seed is passed in as a parameter, defaults to 3
-        #loop through subjects
-        # each element of this list should ultimately be (seq_len*2 + 2,real_voxel_dim+3), i.e CLS+n TRs+SEP+n TRs
-        #   where 3 extra dimensions have been added to the front of the voxel space for the tokens
+
         training_samples = []
         # final list of labels for training
         training_labels = []
         # keep count of how many sample/label pairs we've created
         count = 0
-        val_samples = [] #full left and right samples for this holdout
+        val_samples = [] # samples drawn from the heldout run
         val_labels = []
         val_count = 0
 
@@ -76,10 +74,14 @@ def make_ptdcrossval_data(threshold, hemisphere,  allowed_genres, seq_len=5, num
             #opengenre_preproc_path is defined in Constants.py
             subdir = opengenre_preproc_path + "sub-sid" + sub + "/" + "sub-sid" + sub + "/"
             #load voxel data and labels
-            with open(subdir+"STG_allruns"+hemisphere+"_t"+threshold+".p", "rb") as data_fp:
+            with open(subdir+"STG_allruns"+hemisphere+"_t"+threshold+"_"+str(NUM_TOKENS)+"tokens.p", "rb") as data_fp:
                 all_data = pickle.load(data_fp)
             with open(subdir+"labelindices_allruns.p","rb") as label_fp:
+                # i made these labels back in april but i don't see any reason why they would have changed
+                # also i dont think i even need them for unsupervised pretraining
                 all_labels = pickle.load(label_fp)
+                # THE TSV FILES ON THE DATASET WEBSITE ASSIGN GENRES TO THE DUMMY 15s AT THE BEGINNING OF EACH RUN
+                # THESE ARE NOT REAL AND ARE NOT INCLUDED IN THE LOADED FILES
             voxel_data=[]
             labels=[]
 
@@ -93,6 +95,7 @@ def make_ptdcrossval_data(threshold, hemisphere,  allowed_genres, seq_len=5, num
             if(standardize):
                 all_data = standardize_flattened(all_data)
             #only remove the test_copies many repetitions (max 4) during the Test Runs
+            # note that the dummy data described in the dataset documentation has already been removed, so we are start at index 0 in the loaded data
             n_test_runs = runs_dict["Test"]
             amount = OPENGENRE_TRSPERRUN*test_copies//4
             for run in range(0, n_test_runs):
@@ -113,14 +116,18 @@ def make_ptdcrossval_data(threshold, hemisphere,  allowed_genres, seq_len=5, num
             for TR in range(start, len(all_data)):
                 voxel_data.append(all_data[TR])
                 if (TR % 10 == 0):  # each label corresponds to 10 TRs
+                    #print("When TR is "+str(TR))
                     labels.append(all_labels[TR // 10])  # index in the labels list is one tenth floor'd of the data index
+
             #labels are 0 through 9 inclusive
             #print("length of voxel data after applying test_copies "+str(len(voxel_data)))
             #print("length of labels after applying test_copies is "+str(len(labels)))
 
 
-
             timesteps = len(voxel_data)
+
+            # THIS BLOCK IS CREATING REF_SAMPLES, WHICH HAS ALL SUBJECTS AND ALL RUNS
+            # THE HELDOUT RUN IS ALSO HERE, BUT WE KEEP TRACK OF WHERE IT IS
             #we're going to obtain timesteps//seq_len many samples from each subject
             for t in range(0, timesteps//seq_len):
                 start = t*seq_len
@@ -150,13 +157,17 @@ def make_ptdcrossval_data(threshold, hemisphere,  allowed_genres, seq_len=5, num
         # so after all the subjects are done this value should linger from the final subject's for-loop
         samples_per_subject=iter
         print("samples per subject is "+str(samples_per_subject))
+
+        # THIS BLOCK STORES THE INDICES INTO REF_SAMPLES FOR EACH SUBJECT'S HELDOUT DATA
         for m in range(0,5): #magic number for number of subjects num_subs doesn't exist yet
+            # holdout_start indexes into each subject's chunk within ref_samples
+            # so multiply up to m's chunk and then get the index where the heldout run begins and ends for them
             sub_startstop_list.append([holdout_start+(samples_per_subject*m), holdout_stop+(samples_per_subject*m)])
         print("sub startstop list for holdout "+str(holdout)+" is "+str(sub_startstop_list)+"\n")
         # reference lists are done with threshold, hemisphere, seq_len, detrending, standardization, and test_copies applied
         # the following code builds the training samples and labels by applying num_copies, allowed_genres, and creating both a positive and negative sample for the CLS token task
 
-        # for each left-hand sample, create num_copies positive and negative training samples
+        # BUILD THE SET OF INPUTS AND LABELS HOLDING OUT THE CURRENT HOLDOUT RUN
         for i in range(0, len(ref_samples)):
 
             sub_id_int = (i//samples_per_subject) + 1 #e.g 1100//500 = 2, and subject 3 has range 1000 to 1499 if samplespersubject is 500
@@ -175,146 +186,44 @@ def make_ptdcrossval_data(threshold, hemisphere,  allowed_genres, seq_len=5, num
             sub_id = "00"+str(sub_id_int) # turn it into the familiar id string
             #print("sub_id is "+str(sub_id))
 
-            pos_partners = [] # the reference indices with same genre that have already been paired on the right hand side
-            neg_partners = [] # the reference indices with different genre that have already been paired on the rhs
-            lh_genre = ref_genres[i] # genre of left-hand sample
-            if lh_genre not in allowed_genres:
+            this_genre = ref_genres[i] # genre of left-hand sample
+            if this_genre not in allowed_genres:
                 continue #skip the rest of this iteration
-            if (binary == "same_genre"):
-                for copy in range(0, num_copies):
-                    input_pos = [coppy.deepcopy(CLS)] #create positive sample, get a new address for each iteration
-                    input_neg = [coppy.deepcopy(CLS)] #create negative sample, get a new address for each iteration
 
-                    # create positive training sample, so same genre
-                    rh_genre = lh_genre
-                    for j in range(0, seq_len):
-                        input_pos.append(coppy.deepcopy(ref_samples[i][j])) # fill left hand sample
-                    input_pos.append(coppy.deepcopy(SEP)) #add separator token
-                    partner = i #initial condition for loop
-                    while partner==i: #find a new partner with the same genre
-                        if (within_subjects): #if within_subjects flag is set
-                            dict_key=sub_id #only look at the samples from this subject with this genre
-                        else: #pick one of the subjects at random to pair it with, including themself
-                            dict_key = randint(1,5)
-                            random_numbers.append(dict_key)
-                            dict_key = "00"+str(dict_key)
-                        partner = random.choice(sub_genre_sample_dict[dict_key][lh_genre]) #all other reference indices of this genre for whichever subject was chosen
-                        random_numbers.append(partner)
-                        # this seems roundabout, but if within_subjects is not set this is functionally the same as picking one at random from a complete list, while also allowing mostly re-used code if within_subjects is set
-                        #basically, i did it this way to allow the most overlap in code whether within_subjects is set or not
+            if(binary=="arrowoftime"): # arrow of time task, possibly called temporal orientation instead?
+                # 50-50 chance of this sequence being reversed, decode whether it's reversed (1) or not (0)
+                # the question at hand, then, is "HAS THIS SEQUENCE BEEN REVERSED?"
+                this_input=[coppy.deepcopy(CLS)]
+                # 1 means reversed, 0 means forward
+                direction = random.randint(0,1)
 
-                        if partner in pos_partners: #did we put this on the right side of this left sample already?
-                            partner=i #if so, keep the loop going
-                        if heldout: #if the left is heldout, the right needs to be heldout as well
-                            if not (this_holdout_start <= partner < this_holdout_stop): #if partner is not also held out
-                                partner=i #force partner to be from heldout samples if left sample is heldout
+                # this if-else block sets up the reversal or non-reversal
+                if direction==0:
+                    # has not been reversed
+                    forward_count+=1
+                    start_idx = 0
+                    end_idx = seq_len
+                    incr = 1
+                else:
+                    # has been reversed, direction==1
+                    reverse_count+=1
+                    start_idx = seq_len-1
+                    end_idx = -1
+                    incr = -1
 
-                        else:
-                            pos_partners.append(partner) #otherwise put it in the list and we'll exit the loop
-                    for j in range(0, seq_len):
-                        input_pos.append(coppy.deepcopy(ref_samples[partner][j])) #fill partner as right hand sample
-                    pos_label = [1, lh_genre, rh_genre] #the labels for training, the 1 means same genre
-                    if heldout:
-                        val_samples.append(input_pos) #append to heldout validation set
-                        val_labels.append(pos_label)
-                    else:
-                        training_samples.append(input_pos) #add this input to the final list of training inputs
-                        training_labels.append(pos_label) #add corresponding positive label vector
+                for j in range(start_idx, end_idx, incr):
+                    this_input.append(coppy.deepcopy(ref_samples[i][j]))  # fill left hand sample
 
-                    # create negative training sample, so get a different genre
-                    rh_genre = lh_genre #initial condition for the loop
-                    while rh_genre == lh_genre: #until we get a different one
-                        rh_genre = random.choice(allowed_genres) #get a genre label
-                        random_numbers.append(rh_genre)
-                    for j in range(0, seq_len):
-                        input_neg.append(coppy.deepcopy(ref_samples[i][j])) # fill left hand sample
-                    input_neg.append(coppy.deepcopy(SEP)) #add separator token
-
-                    partner = i #initial condition for loop
-                    while partner==i: #find a new partner with a different genre
-                        partner = random.choice(sub_genre_sample_dict[dict_key][rh_genre]) #all other reference indices of this genre
-                        random_numbers.append(partner)
-                        if partner in neg_partners: #did we put this on the right side of this left sample already?
-                            partner=i #if so, keep the loop going
-                        if heldout:  # if the left is heldout, the right needs to be heldout as well
-                            if not (this_holdout_start <= partner < this_holdout_stop):  # if partner is not also held out
-                                partner = i  # force partner to be from heldout samples if left sample is heldout
-
-                        else:
-                            neg_partners.append(partner) #otherwise put it in the list and we'll exit the loop
-                    for j in range(0, seq_len):
-                        input_neg.append(coppy.deepcopy(ref_samples[partner][j])) #fill partner as right hand sample
-                    neg_label = [0, lh_genre, rh_genre] #the labels for training, the 0 means different genre
-                    if heldout:
-                        val_samples.append(input_neg)
-                        val_labels.append(neg_label)
-                    else:
-                        training_samples.append(input_neg) #add this input to the final list of training inputs
-                        training_labels.append(neg_label) #add corresponding negative label vector
-
-                # if(i==0 and verbose):
-                #     print("after i==0, training_samples has "+str(len(training_samples))+" samples, which should be "+str(2*num_copies)+ " and each sample has length "+str(len(training_samples[0]))+ " which each have length" +str(len(training_samples[0][0]))+".\n")
-                #     print("also, the label vectors are pos: "+str(pos_label)+" and neg: "+str(neg_label)+".\n\n")
-            elif(binary=="nextseq"):
-                input_pos=[coppy.deepcopy(CLS)]
-                input_neg=[coppy.deepcopy(CLS)]
-                #create positive sample, it IS the next sequence
-                for j in range(0, seq_len):
-                    input_pos.append(coppy.deepcopy(ref_samples[i][j]))  # fill left hand sample
-                input_pos.append(coppy.deepcopy(SEP))
-                partner=i+1
-                # dont want partners across subjects
-                #  also covers the case where partner would go out of range
-                if(partner>sub_end):
-                    continue
-                for j in range(0, seq_len):
-                    input_pos.append(coppy.deepcopy(ref_samples[i+1][j]))
-                rh_genre = ref_genres[i+1]
-                pos_label = [1, lh_genre, rh_genre]  # the labels for training, the 1 means same genre
+                # i use an augmented label to smuggle in some metadata that I might want, including a little description of what everything is
+                this_label = [direction, this_genre, i, sub_id_int, "dimension 0 is the label, 1 is the genre, 2 is the index into ref_samples of this sample, 3 is the sub ID"]  # the labels for training, the 1 means same genre
                 # add sample and label to final product
 
-                #smuggle relevant information inside the first two dimensions of the CLS token
-                # at training time, because the data is shuffled, we'll have no way of knowing where in ref_samples this thing came from, hence the smuggling. we'll set these back to 1 and 0 respectively before giving it to the model.
-                input_pos[0][0]=sub_id_int
-                input_pos[0][1]=i
-                input_pos[0][2]=partner
-
                 if heldout:
-                    val_samples.append(input_pos)  # append to heldout validation set
-                    val_labels.append(pos_label)
+                    val_samples.append(this_input)  # append to heldout validation set
+                    val_labels.append(this_label)
                 else:
-                    training_samples.append(input_pos)
-                    training_labels.append(pos_label)
-
-                #create negative sample
-                for j in range(0, seq_len):
-                    input_neg.append(coppy.deepcopy(ref_samples[i][j]))  # fill left hand sample
-                input_neg.append(coppy.deepcopy(SEP))
-                partner=i
-                while(partner==i):
-                    partner=random.choice(range(sub_start,sub_end+1))
-                    #don't want it to be the next sample or the previous sample to avoid confounding
-                    if partner==(i+1) or partner==(i-1):
-                        partner=i
-
-                # ok we got a partner that isn't itself or the next sequence
-                rh_genre=ref_genres[partner]
-                for j in range(0, seq_len):
-                    input_neg.append(coppy.deepcopy(ref_samples[partner][j]))  # fill left hand sample
-                neg_label=[0, lh_genre, rh_genre]
-                #smuggle relevant information inside the first two dimensions of the CLS token
-                # at training time, because the data is shuffled, we'll have no way of knowing where in ref_samples this thing came from, hence the smuggling. we'll set these back to 1, 0, and 0 respectively before giving it to the model.
-                input_neg[0][0]=sub_id_int
-                input_neg[0][1]=i
-                input_neg[0][2]=partner
-
-                if heldout:
-                    val_samples.append(input_neg)  # append to heldout validation set
-                    val_labels.append(neg_label)
-                else:
-                    training_samples.append(input_neg)
-                    training_labels.append(neg_label)
-
+                    training_samples.append(this_input)
+                    training_labels.append(this_label)
 
         #now every element of reference_samples should have num_copies many positive and negative partners in training_samples
         #  training_labels[i] is a vector of [{0,1}, lh_genre, rh_genre] for training_sample[i]
@@ -327,11 +236,10 @@ def make_ptdcrossval_data(threshold, hemisphere,  allowed_genres, seq_len=5, num
         #save training_samples and training_labels
         time = date.today()
         #this_dir = opengenre_preproc_path+"training_data/cross_val/"+str(time)+"/"
-        this_dir = opengenre_preproc_path+"training_data/"+str(time)+"/"
+        this_dir = opengenre_preproc_path+"training_data/timedir/"+str(time)+"/"
 
         if not os.path.exists(this_dir):
             os.mkdir(this_dir)
-
 
         # save the refsamples list, this should be the same every time so no need to keep track with a count in the filename
         with open(this_dir+str(hemisphere)+"_refsamples.p","wb") as refsamples_fp:
@@ -358,7 +266,7 @@ def make_ptdcrossval_data(threshold, hemisphere,  allowed_genres, seq_len=5, num
 
         #save metadata
         with open(this_dir+str(hemisphere)+"_metadata"+str(count)+".txt","w") as meta_fp:
-            meta_fp.write("Making nextseq binary task data with the 12 heldout run crossval scheme. Seeding rng with seed=3 at the beginning of each of the 12 iterations. Also the first dataset filled with deepcopies of lists instead of repeated referenes. That shouldn't affect anything, but who knows.\n"+
+            meta_fp.write("Making timedirection binary task data with the 12 heldout run crossval scheme. Seeding rng with seed=3 at the beginning.\n"+
                     "\nnum_samples:"+str(len(training_samples))+
                     "\nallowed_genres:"+str(allowed_genres)+
                     "\nthreshold:"+str(threshold)+
@@ -381,4 +289,4 @@ if __name__=="__main__":
     #num_copies is the number of positive and negative training samples to create from each left-hand sample
     #allowed_genres is a list of what it sounds like, remember range doesn't include right boundary
     # val_copies is the data augmentation factor for the held out run. That run will have ~1/10 the data of the full run, so it probably needs some augmentation
-    make_ptdcrossval_data("23", hemisphere="left", seq_len=5, num_copies=1, standardize=1, detrend="linear", mask_task="same_genre", within_subjects=1, allowed_genres=range(0,10), val_flag=1)
+    make_ptdsingle_data("23", hemisphere="left", seq_len=5, num_copies=1, standardize=1, detrend="linear", mask_task="same_genre", within_subjects=1, allowed_genres=range(0,10), val_flag=1)
