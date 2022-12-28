@@ -450,7 +450,6 @@ def apply_masks(x, y, ref_samples, hp_dict, mask_variation, ytrue_multi_batch, s
 
             if first:
                 first=False
-                #sample_dists.append(ytrue_dist_multi1.tolist())
                 if(mask_task=="genre_decode"):
                     ytrue_dist_multi1[ytrue_multi_idx] = 1  # put mass on that genre label
                     ytrue_multi_batch.append(ytrue_dist_multi1.tolist())
@@ -464,7 +463,6 @@ def apply_masks(x, y, ref_samples, hp_dict, mask_variation, ytrue_multi_batch, s
                     log.write("illegal value for mask task in apply masks, got "+str(mask_task)+", quitting...\n")
             else:
                 ytrue_dist_multi2[ytrue_multi_idx]=1 #if this is the second replacement/mask use the second distribution
-                #sample_dists.append(ytrue_dist_multi2.tolist())
                 if(mask_task=="genre_decode"):
                     ytrue_multi_batch.append(ytrue_dist_multi2.tolist())
                 elif(mask_task=="reconstruction"):
@@ -478,7 +476,6 @@ def apply_masks(x, y, ref_samples, hp_dict, mask_variation, ytrue_multi_batch, s
         if(k==1):
             # these two lists  need to have length two even if only one replacement is done, for consistent dimensions
             sample_mask_indices.append(-1)
-            #sample_dists.append([-1,0,0,0,0,0,0,0,0,0])
         #add label information for this sample to batch list
         #ytrue_multi_batch.append(sample_dists)
 
@@ -507,6 +504,39 @@ def apply_masks(x, y, ref_samples, hp_dict, mask_variation, ytrue_multi_batch, s
         x[mask_choice][1]=1
         #x[mask_choice] = torch.clone(MSK)
         sample_mask_indices.append(mask_choice)
+    #add mask indices for this one sample to batch list
+    batch_mask_indices.append(sample_mask_indices)
+
+def apply_masks_timedir(x, y, ref_samples, hp_dict, mask_variation, ytrue_multi_batch, batch_mask_indices, sample_mask_indices, mask_task, log, heldout=False):
+
+    # if we want to mask two timesteps half the time and only one timestep the other half of the time
+    if (mask_variation):
+        print("mask variation not yet implemented for timedir task, quitting...")
+        quit(0)
+
+    # else, just pick one token to mask instead of worrying about how BERT does it
+    else:
+        mask_choice = randint(1, 5)  # pick a token to mask, todo: need a more robust system instead of magic numbers
+
+        if(mask_task=="reconstruction"):
+            #the label is just the TR that we chose to mask
+            ytrue_multi_batch.append(copy.deepcopy(x[mask_choice]))
+        else:
+            print("illegal value for mask task in apply masks, got " + str(mask_task) + ", quitting...\n")
+            quit(0)
+
+        # loop through the voxels
+        # i could just replace this with a clone of the MSK tensor but I had some issues that I can't remember, so for now I'm just setting it to the mask token's values by hand
+        for i in range(0, len(x[0])):
+            x[mask_choice][i] = 0  # zero it out
+        x[mask_choice][1]=1 # recall MSK is zero everywhere except the 2nd dimension
+
+        sample_mask_indices.append(mask_choice)
+        # to enable future developments when there are two masks, I want sample_mask_indices to always have length 2
+        # a -1 will indicate to the model downstream that only one timestep was masked
+        sample_mask_indices.append(-1)
+
+
     #add mask indices for this one sample to batch list
     batch_mask_indices.append(sample_mask_indices)
 
