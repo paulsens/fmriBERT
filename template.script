@@ -1,0 +1,29 @@
+#!/bin/bash
+
+#Name of the job
+#SBATCH --job-name=translurm
+
+#Number of compute nodes
+#SBATCH --nodes=1
+
+#Number of tasks per node 
+#SBATCH --cpus-per-task=2
+
+#Request memory
+#SBATCH --mem=20G
+
+#Walltime
+#SBATCH --time=20:00:00
+
+#Import environment variables from caller's environment 
+#SBATCH --export=ALL
+
+#error and output files
+#SBATCH -o /isi/music/auditoryimagery2/seanfiles/translurm_cleanup/translurm_%j.txt
+#SBATCH -e /isi/music/auditoryimagery2/seanfiles/translurm_cleanup/translurm_%j.err
+
+source /dartfs-hpc/rc/home/3/f003543/.conda/envs/mvpa3/bin/activate mvpa3
+
+#python /isi/music/auditoryimagery2/seanfiles/make_ds.py $SUBJECT $ROI $STRAT $HALF
+#python /isi/music/auditoryimagery2/seanfiles/make_ds_half.py $SUBJECT $ROI $STRAT $HALF
+python /isi/music/auditoryimagery2/seanfiles/translurm_combine.py $SUBJECT

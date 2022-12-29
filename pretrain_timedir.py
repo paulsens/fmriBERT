@@ -21,8 +21,8 @@ random.seed(seed)
 torch.manual_seed(seed)
 np.random.seed(seed)
 mask_variation=False
-bintask_weight = 0.5
-multitask_weight = 1-bintask_weight
+CLS_task_weight = 0.5
+MSK_task_weight = 1-CLS_task_weight
 LR_def=0.0001 #defaults, should normally be set by command line
 printed_count=0
 val_printed_count=0
@@ -34,21 +34,35 @@ if __name__ == "__main__":
         #get command line arguments and options
         opts = [opt for opt in sys.argv[1:] if opt.startswith("-")]
         args = [arg for arg in sys.argv[1:] if not arg.startswith("-")]
+
+        # text description of this job
         if "-m" in opts:
             # -m "this is the description of the run" will be at the end of the command line call
             idx = opts.index("-m")
             run_desc = args[idx]
         else:
             run_desc = None
+
+        # pretraining task
+        if "-task" in opts:
+            # either "both", "CLS_only" or "MSK_only"
+            idx = opts.index("-task")
+            task_arg = args[idx]
+        else:
+            task_arg = "both"
+
+        # train on gpu or not, not implemented yet
         if "-gpu" in opts:
             idx = opts.index("-gpu")
             gpunum=args[idx] #currently only works if only one gpu is given
             device = torch.device("cuda:"+str(gpunum))
         else:
             device="cpu"
-        if "-count" in opts:
+
+        # index in job submission script, indicates the heldout run
+        if "-heldout_run" in opts:
             # count and thiscount can be read as the index of the heldout run
-            idx = opts.index("-count")
+            idx = opts.index("-heldout_run")
             thiscount=int(args[idx])
             held_start=(600 + (400 * thiscount))
             held_range=range(held_start, held_start+400)
@@ -56,6 +70,7 @@ if __name__ == "__main__":
             thiscount=None
             held_start=None
             held_range=None
+
         if "-LR" in opts:
             idx = opts.index("-LR")
             LR = args[idx]
@@ -63,19 +78,20 @@ if __name__ == "__main__":
                 LR = LR_def #default value if nothing is passed by command line
             LR = float(LR)
 
-        if "-binweight" in opts:
-            idx = opts.index("-binweight")
-            bintask_weight= args[idx]
-            if bintask_weight=="default":
-                bintask_weight=1
+        if "-CLS_task_weight" in opts:
+            idx = opts.index("-CLS_task_weight")
+            CLS_task_weight= args[idx]
+            if CLS_task_weight=="default":
+                CLS_task_weight=1
             else:
-                bintask_weight=float(bintask_weight)
-            multitask_weight = 1 - bintask_weight  # if we're just averaging then these two weights would both be 0.5
+                CLS_task_weight=float(CLS_task_weight)
+            MSK_task_weight = 1 - CLS_task_weight  # if we're just averaging then these two weights would both be 0.5
 
         # whether or not we want to save the model after training, defaults to False if not provided
-        if "-savemodel" in opts:
-            idx = opts.index("-savemodel")
+        if "-save_model" in opts:
+            idx = opts.index("-save_model")
             save_model = args[idx]
+            save_model = True if save_model=="True" else False
 
         else:
             save_model = False
@@ -87,9 +103,9 @@ if __name__ == "__main__":
         #dictionary of hyperparameters, eventually should probably come from command line
         hp_dict={
 
-            "task":"both",
-            "binary":"timedir", #same_genre or nextseq
-            "mask_task":"reconstruction",
+            "task":task_arg, #passed in by command line
+            "CLS_task":"timedir", #same_genre or nextseq
+            "MSK_task":"reconstruction",
             "COOL_DIVIDEND" : COOL_DIVIDEND,
             "NUM_TOKENS": NUM_TOKENS,
             "ATTENTION_HEADS" : ATTENTION_HEADS,
@@ -117,14 +133,14 @@ if __name__ == "__main__":
 
         if(debug):
             print("LR is "+str(hp_dict["LEARNING_RATE"]))
-            print("bintaskweight is "+str(bintask_weight))
-            print("multitaskweight is "+str(multitask_weight))
+            print("CLS_task_weight is "+str(CLS_task_weight))
+            print("MSK_task_weight is "+str(MSK_task_weight))
 
         hp_dict["data_path"] = opengenre_preproc_path + "training_data/" + hp_dict["data_dir"] + "/"
         torch.set_default_dtype(torch.float32)
 
         #set up logfile, PRETRAIN_LOG_PATH is defined in Constants.py
-        today_dir = PRETRAIN_LOG_PATH+str(today)+"/"
+        today_dir = PRETRAIN_TIMEDIR_LOG_PATH+str(today)+"/"
         if not (os.path.exists(today_dir)):
             os.mkdir(today_dir)
         if(thiscount!=None):
@@ -202,20 +218,20 @@ if __name__ == "__main__":
         MSK_token = np.array(MSK_token)
         MSK_token = torch.from_numpy(MSK_token)
 
-        binary_task_labels = 2 # two possible labels for same genre task, yes or no
+        CLS_task_labels = 2 # two possible labels for same genre task, yes or no
         num_genres = 10 # from the training set, not used currently
 
         src_pad_sequence = [0]*voxel_dim # not used currently
 
-        model = Transformer(next_sequence_labels=binary_task_labels, num_genres=num_genres, src_pad_sequence=src_pad_sequence, max_length=max_length, voxel_dim=voxel_dim, ref_samples=ref_samples, mask_task=hp_dict["mask_task"], print_flag=0).to(hp_dict["device"])
+        model = Transformer(next_sequence_labels=CLS_task_labels, num_genres=num_genres, src_pad_sequence=src_pad_sequence, max_length=max_length, voxel_dim=voxel_dim, ref_samples=ref_samples, mask_task=hp_dict["MSK_task"], print_flag=0).to(hp_dict["device"])
         model = model.float()
         model.to(hp_dict["device"])
 
         criterion_bin = nn.CrossEntropyLoss()
-        if hp_dict["mask_task"]=="genre_decode":
+        if hp_dict["MSK_task"]=="genre_decode":
             criterion_multi = nn.CrossEntropyLoss()
             get_multi_acc = True
-        elif hp_dict["mask_task"]=="reconstruction":
+        elif hp_dict["MSK_task"]=="reconstruction":
             criterion_multi = nn.MSELoss()
             get_multi_acc = False
         optimizer = optim.Adam(model.parameters(), lr=hp_dict["LEARNING_RATE"], betas=(0.9,0.999), weight_decay=0.0001)
@@ -259,7 +275,7 @@ if __name__ == "__main__":
                     sample_mask_indices = []  # will contain two ints, see comment for batch_mask_indices above
 
                     #no return value from apply_masks, everything is updated by reference in the lists
-                    apply_masks_timedir(X_batch[x], y_batch[x], ref_samples, hp_dict, mask_variation, ytrue_multi_batch, batch_mask_indices, sample_mask_indices, mask_task=hp_dict["mask_task"], log=log, heldout=False)
+                    apply_masks_timedir(X_batch[x], y_batch[x], ref_samples, hp_dict, mask_variation, ytrue_multi_batch, batch_mask_indices, sample_mask_indices, mask_task=hp_dict["MSK_task"], log=log, heldout=False)
 
                 for y in range(0,hp_dict["BATCH_SIZE"]):
                     if(y_batch[y][0]==1): # then it WAS reversed
@@ -283,9 +299,9 @@ if __name__ == "__main__":
                 ytrue_bin_batch.to(hp_dict["device"])
                 #batch_mask_indices.to(hp_dict["device"])
 
-                #returns predictions for binary class and multiclass, in that order
+                #returns predictions for CLS task and MSK task in that order
                 ypred_bin_batch,ypred_multi_batch = model(X_batch, batch_mask_indices)
-                for batch_idx, bin_pred in enumerate(ypred_bin_batch): #for each 2 dimensional output vector for the binary task
+                for batch_idx, bin_pred in enumerate(ypred_bin_batch): #for each 2 dimensional output vector for the CLS task
                     bin_true=ytrue_bin_batch[batch_idx]
                     true_idx=torch.argmax(bin_true)
                     pred_idx=torch.argmax(bin_pred)
@@ -303,19 +319,19 @@ if __name__ == "__main__":
                 loss_multi = criterion_multi(ypred_multi_batch, ytrue_multi_batch)
 
                 # the total loss of this sample depends on whether we're doing simultaneous training or not
-                if hp_dict["task"] == "binaryonly":
+                if hp_dict["task"] == "CLSonly":
                     loss = loss_bin #toy example for just same-genre task
-                    acc = get_accuracy(ypred_bin_batch, ytrue_bin_batch, hp_dict["binary"], log)
-                elif hp_dict["task"] == "multionly":
+                    acc = get_accuracy(ypred_bin_batch, ytrue_bin_batch, hp_dict["CLS_task"], log)
+                elif hp_dict["task"] == "MSKonly":
                     loss = loss_multi
-                    acc = get_accuracy(ypred_multi_batch, ytrue_multi_batch, hp_dict["mask_task"], log)
+                    acc = get_accuracy(ypred_multi_batch, ytrue_multi_batch, hp_dict["MSK_task"], log)
 
                 elif hp_dict["task"]=="both":
-                    loss = (loss_bin*bintask_weight) + (loss_multi*multitask_weight) #as per devlin et al, loss is a weighted average of the two tasks' losses, the weights are tuned hyperparameters although devlin did 0.5 each
+                    loss = (loss_bin*CLS_task_weight) + (loss_multi*MSK_task_weight) #as per devlin et al, loss is a weighted average of the two tasks' losses, the weights are tuned hyperparameters although devlin did 0.5 each
                     epoch_tbin_loss += loss_bin.item() # keeping track of CLS and MSK losses separately for analysis
                     epoch_tmulti_loss += loss_multi.item()
-                    acc1 = get_accuracy(ypred_bin_batch, ytrue_bin_batch, hp_dict["binary"], log)
-                    acc2 = get_accuracy(ypred_multi_batch, ytrue_multi_batch, hp_dict["mask_task"], log)
+                    acc1 = get_accuracy(ypred_bin_batch, ytrue_bin_batch, hp_dict["CLS_task"], log)
+                    acc2 = get_accuracy(ypred_multi_batch, ytrue_multi_batch, hp_dict["MSK_task"], log)
 
                 loss.backward()
                 optimizer.step()
@@ -349,15 +365,15 @@ if __name__ == "__main__":
                         X_batch_val=X_batch_val.float()
                         y_batch_val=y_batch_val.float()
                         batch_mask_indices_val = [] # see comment above for batch_mask_indices
-                        ytrue_bin_batch_val = []  # list of batch targets for binary classification task
-                        ytrue_multi_batch_val = []  # list of batch targets for multi-classification task
+                        ytrue_bin_batch_val = []  # list of batch targets for CLS task
+                        ytrue_multi_batch_val = []  # list of batch targets for MSK task
                         X_batch_val, y_batch_val = X_batch_val.to(hp_dict["device"]), y_batch_val.to(hp_dict["device"])
 
                         # LOOP THROUGH SAMPLES WITHIN THIS BATCH
                         for x in range(0, hp_dict["BATCH_SIZE"]):
                             sample_mask_indices_val = [] # see comment above for sample_mask_indices
                             # no return value from apply_masks, everything is updated by reference in the lists
-                            apply_masks(X_batch_val[x], y_batch_val[x], ref_samples, hp_dict, mask_variation,   ytrue_multi_batch_val, batch_mask_indices_val, sample_mask_indices_val, mask_task=hp_dict["mask_task"], log=log, heldout=True)
+                            apply_masks(X_batch_val[x], y_batch_val[x], ref_samples, hp_dict, mask_variation,   ytrue_multi_batch_val, batch_mask_indices_val, sample_mask_indices_val, mask_task=hp_dict["MSK_task"], log=log, heldout=True)
 
                         # just used as metadata/bookkeeping/debugging, no analogue for training split
                         epoch_val_masks.append(batch_mask_indices_val)
@@ -382,7 +398,7 @@ if __name__ == "__main__":
 
                         #get accuracy/precision stats for validation samples
                         for batch_idx, bin_pred in enumerate(
-                                ypred_bin_batch_val):  # for each 2 dimensional output vector for the binary task
+                                ypred_bin_batch_val):  # for each 2 dimensional output vector for the CLS task
                             bin_true = ytrue_bin_batch_val[batch_idx]
                             true_idx = torch.argmax(bin_true)
                             pred_idx = torch.argmax(bin_pred)
@@ -401,21 +417,21 @@ if __name__ == "__main__":
                         loss_multi_val = criterion_multi(ypred_multi_batch_val, ytrue_multi_batch_val)
 
                         # total loss depends on whether we're doing simultaneous training
-                        if hp_dict["task"] == "binaryonly":
+                        if hp_dict["task"] == "CLSonly":
                             loss = loss_bin_val  # toy example for just same-genre task
-                            acc = get_accuracy(ypred_bin_batch_val, ytrue_bin_batch_val, hp_dict["binary"],log)
-                        elif hp_dict["task"] == "multionly":
+                            acc = get_accuracy(ypred_bin_batch_val, ytrue_bin_batch_val, hp_dict["CLS_task"],log)
+                        elif hp_dict["task"] == "MSKonly":
                             loss = loss_multi_val
-                            acc = get_accuracy(ypred_multi_batch_val, ytrue_multi_batch_val, hp_dict["mask_task"], log)
+                            acc = get_accuracy(ypred_multi_batch_val, ytrue_multi_batch_val, hp_dict["MSK_task"], log)
 
                         # see training split above for comments on all these variables
                         elif hp_dict["task"]=="both":
-                            loss = (loss_bin_val * bintask_weight) + (
-                                        loss_multi_val * multitask_weight)
+                            loss = (loss_bin_val * CLS_task_weight) + (
+                                        loss_multi_val * MSK_task_weight)
                             epoch_vbin_loss+= loss_bin_val.item()
                             epoch_vmulti_loss+=loss_multi_val.item()
-                            acc1 = get_accuracy(ypred_bin_batch_val, ytrue_bin_batch_val, hp_dict["binary"],log)
-                            acc2 = get_accuracy(ypred_multi_batch_val, ytrue_multi_batch_val, hp_dict["mask_task"], log)
+                            acc1 = get_accuracy(ypred_bin_batch_val, ytrue_bin_batch_val, hp_dict["CLS_task"],log)
+                            acc2 = get_accuracy(ypred_multi_batch_val, ytrue_multi_batch_val, hp_dict["MSK_task"], log)
 
                         val_loss += loss.item()
                         if(hp_dict["task"]=="both"):
@@ -450,13 +466,13 @@ if __name__ == "__main__":
 
         if(save_model):
             modelcount=0
-            model_path = "/isi/music/auditoryimagery2/seanthesis/opengenre/final/"+str(hp_dict["task"])+"/states_"+str(thiscount)+str(modelcount)+".pt"
+            model_path = PRETRAIN_TIMEDIR_MODEL_PATH+str(hp_dict["task"])+"/states_"+str(thiscount)+str(modelcount)+".pt"
             while(os.path.exists(model_path)):
                 modelcount+=1
-                model_path = "/isi/music/auditoryimagery2/seanthesis/opengenre/final/"+str(hp_dict["task"])+"/states_"+str(thiscount)+str(modelcount)+".pt"
+                model_path = PRETRAIN_TIMEDIR_MODEL_PATH+str(hp_dict["task"])+"/states_"+str(thiscount)+str(modelcount)+".pt"
 
             torch.save(model.state_dict(),model_path)
-            model_path = "/isi/music/auditoryimagery2/seanthesis/opengenre/final/"+str(hp_dict["task"])+"/full_" + str(thiscount) + str(
+            model_path = PRETRAIN_TIMEDIR_MODEL_PATH+str(hp_dict["task"])+"/full_" + str(thiscount) + str(
                 modelcount) + ".pt"
             torch.save(model,model_path)
 

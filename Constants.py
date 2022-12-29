@@ -81,8 +81,14 @@ elif env == "discovery":
 
 if env == "local":
     PRETRAIN_LOG_PATH = "/Users/sean/Desktop/current_research/fmriBERTfix/fmriBERT/pretrain_logs/"
+    PRETRAIN_TIMEDIR_LOG_PATH = "/Users/sean/Desktop/current_research/fmriBERTfix/fmriBERT/pretrain_timedir_logs/"
+    PRETRAIN_TIMEDIR_MODEL_PATH = None
+
 elif env == "discovery":
-    PRETRAIN_LOG_PATH = "/isi/music/auditoryimagery2/seanthesis/pretrain_logs/"
+    PRETRAIN_LOG_PATH = "/isi/music/auditoryimagery2/seanthesis/pretrain_timedir_logs/"
+    PRETRAIN_TIMEDIR_LOG_PATH = "/isi/music/auditoryimagery2/seanthesis/timedir/pretrain/logs/"
+    PRETRAIN_TIMEDIR_MODEL_PATH = "/isi/music/auditoryimagery2/seanthesis/timedir/pretrain/trained_models/"
+
 
 NUM_TOKENS = 2 # CLS AND MSK, plus SEP if you're doing paired inputs, otherwise just 2
 COOL_DIVIDEND=420-NUM_TOKENS #sweetspot for voxel space dimension, will vary by ROI, but STG is 420 (after the 3 token dimensions are inserted)

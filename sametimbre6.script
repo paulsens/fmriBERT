@@ -1,0 +1,31 @@
+#!/bin/bash
+
+#Name of the job
+#SBATCH --job-name=sametimbre
+
+#Number of compute nodes
+#SBATCH --nodes=1
+
+#Number of tasks per node
+#SBATCH --cpus-per-task=2
+
+#Request memory
+#SBATCH --mem=20G
+
+#Walltime
+#SBATCH --time=15:00:00
+
+#Import environment variables from caller's environment
+#SBATCH --export=ALL
+
+#error and output files
+#SBATCH -o /isi/music/auditoryimagery2/seanthesis/pitchclass/finetuning/sametimbre/ofiles/nov10/fresh/o_%j.txt
+#SBATCH -e /isi/music/auditoryimagery2/seanthesis/pitchclass/finetuning/sametimbre/errfiles/nov10/fresh/o_%j.err
+#SBATCH --mail-user=paulsen.sean@gmail.com
+source /dartfs-hpc/rc/home/3/f003543/.conda/envs/fmribert/bin/activate fmribert
+
+echo ofiles are at /isi/music/auditoryimagery2/seanthesis/pitchclass/finetuning/sametimbre/ofiles/oct26/${2}/o_${3}-${4}.txt
+
+python /isi/music/auditoryimagery2/seanthesis/pyfiles2/sametimbre.py -m "$1" -pretrain_task "$2" -pretrain_idx "$3" -count "$4" -freeze_pretrained "$5"
+
+
