@@ -141,7 +141,7 @@ if __name__ == "__main__":
         torch.set_default_dtype(torch.float32)
 
         #set up logfile, PRETRAIN_LOG_PATH is defined in Constants.py
-        today_dir = PRETRAIN_TIMEDIR_LOG_PATH+str(today)+"/"
+        today_dir = PRETRAIN_TIMEDIR_LOG_PATH+str(hp_dict["task"])+"/"+str(today)+"/"
         if not (os.path.exists(today_dir)):
             os.mkdir(today_dir)
         if(thiscount!=None):

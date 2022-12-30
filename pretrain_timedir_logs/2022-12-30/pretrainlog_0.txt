@@ -1,0 +1,24 @@
+2022-12-30 14:32:38.760289
+task : both
+CLS_task : timedir
+MSK_task : reconstruction
+COOL_DIVIDEND : 418
+NUM_TOKENS : 2
+ATTENTION_HEADS : 6
+device : cpu
+MSK_flag : 1
+CLS_flag : 1
+BATCH_SIZE : 1
+EPOCHS : 1
+LEARNING_RATE : 1e-05
+data_dir : 2022-12-29
+hemisphere : left
+count : 0
+max_sample_length : 5
+mask_variation : False
+within_subject : 1
+num_subjects : 5
+heldout_run : 0
+held_start : 600
+held_range : range(600, 1000)
+data_path : /Volumes/External/opengenre/preproc/training_data/timedir/2022-12-29/
