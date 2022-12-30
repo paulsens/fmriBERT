@@ -74,9 +74,12 @@ elif env == "discovery":
 if env == "local":
     opengenre_preproc_path = "/Volumes/External/opengenre/preproc/"
     pitchclass_preproc_path = "/Volumes/External/pitchclass/preproc/"
+    timedir_datasets_path = "/Volumes/External/opengenre/preproc/training_data/timedir/"
+
 elif env == "discovery":
     opengenre_preproc_path = "/isi/music/auditoryimagery2/seanthesis/opengenre/preproc/"
     pitchclass_preproc_path = "/isi/music/auditoryimagery2/seanthesis/pitchclass/preproc/"
+    timedir_datasets_path = "/isi/music/auditoryimagery2/seanthesis/timedir/pretrain/datasets/"
 
 
 if env == "local":

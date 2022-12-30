@@ -214,8 +214,9 @@ def make_ptdsingle_data(threshold, hemisphere,  allowed_genres, seq_len=5, num_c
                 for j in range(start_idx, end_idx, incr):
                     this_input.append(coppy.deepcopy(ref_samples[i][j]))  # fill left hand sample
 
-                # i use an augmented label to smuggle in some metadata that I might want, including a little description of what everything is
-                this_label = [direction, this_genre, i, sub_id_int, "dimension 0 is the label, 1 is the genre, 2 is the index into ref_samples of this sample, 3 is the sub ID"]  # the labels for training, the 1 means same genre
+                # i use an augmented label to smuggle in some metadata that I might want
+                # can't include strings in order to be converted a tensor properly during training
+                this_label = [direction, this_genre, i, sub_id_int]
                 # add sample and label to final product
 
                 if heldout:

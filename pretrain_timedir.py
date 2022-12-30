@@ -64,12 +64,11 @@ if __name__ == "__main__":
             # count and thiscount can be read as the index of the heldout run
             idx = opts.index("-heldout_run")
             thiscount=int(args[idx])
-            held_start=(600 + (400 * thiscount))
-            held_range=range(held_start, held_start+400)
         else:
-            thiscount=None
-            held_start=None
-            held_range=None
+            thiscount=0
+        held_start = (600 + (400 * thiscount))
+        held_range = range(held_start, held_start + 400)
+
 
         if "-LR" in opts:
             idx = opts.index("-LR")
@@ -77,6 +76,8 @@ if __name__ == "__main__":
             if LR=="default":
                 LR = LR_def #default value if nothing is passed by command line
             LR = float(LR)
+        else:
+            LR=0.00001
 
         if "-CLS_task_weight" in opts:
             idx = opts.index("-CLS_task_weight")
@@ -116,7 +117,7 @@ if __name__ == "__main__":
             "EPOCHS" : EPOCHS,
             "LEARNING_RATE" : LR, # set at top of this file or by command line argument
             #Have to manually set the name of the folder whose training data you want to use, since there will be many
-            "data_dir" : "2022-12-27", # yyyy-mm-dd
+            "data_dir" : "2022-12-29", # yyyy-mm-dd
             #Manually set the hemisphere and iteration number of the dataset you want to use in that folder
             "hemisphere": "left",
             "count" : str(thiscount), # count and thiscount can be read as the index of the heldout run
@@ -136,7 +137,7 @@ if __name__ == "__main__":
             print("CLS_task_weight is "+str(CLS_task_weight))
             print("MSK_task_weight is "+str(MSK_task_weight))
 
-        hp_dict["data_path"] = opengenre_preproc_path + "training_data/" + hp_dict["data_dir"] + "/"
+        hp_dict["data_path"] = timedir_datasets_path + hp_dict["data_dir"] + "/"
         torch.set_default_dtype(torch.float32)
 
         #set up logfile, PRETRAIN_LOG_PATH is defined in Constants.py
@@ -180,6 +181,8 @@ if __name__ == "__main__":
                 val_X = pickle.load(samples_fp)
             with open(hp_dict["data_path"] + hp_dict["hemisphere"] + "_vallabels"+hp_dict["count"]+".p", "rb") as labels_fp:
                 val_Y = pickle.load(labels_fp)
+            print("num val samples is "+str(len(val_X)))
+            #print("val Y is "+str(val_Y))
 
         #train_X has shape (timesteps, max_length, voxel_dim)
         num_samples = len(train_X)
@@ -188,6 +191,8 @@ if __name__ == "__main__":
         voxel_dim = len(train_X[0][0])
         print("voxel dim is "+str(voxel_dim))
         print("num samples is "+str(num_samples))
+        #print("train Y is "+str(train_Y))
+
 
         #convert to numpy arrays
         train_X = np.array(train_X)
@@ -315,6 +320,7 @@ if __name__ == "__main__":
                 ypred_bin_batch = ypred_bin_batch.float()
                 ypred_multi_batch = ypred_multi_batch.float()
 
+                #print("attempted to reconstruct "+str(ytrue_multi_batch))
                 loss_bin = criterion_bin(ypred_bin_batch, ytrue_bin_batch)
                 loss_multi = criterion_multi(ypred_multi_batch, ytrue_multi_batch)
 

@@ -520,13 +520,15 @@ def apply_masks_timedir(x, y, ref_samples, hp_dict, mask_variation, ytrue_multi_
 
         if(mask_task=="reconstruction"):
             #the label is just the TR that we chose to mask
-            ytrue_multi_batch.append(copy.deepcopy(x[mask_choice]))
+            ytrue_multi_batch.append(copy.deepcopy(x[mask_choice]).tolist())
         else:
             print("illegal value for mask task in apply masks, got " + str(mask_task) + ", quitting...\n")
             quit(0)
 
         # loop through the voxels
         # i could just replace this with a clone of the MSK tensor but I had some issues that I can't remember, so for now I'm just setting it to the mask token's values by hand
+        # print("Masking TR at index "+str(mask_choice))
+        # print("Masking "+str(x[mask_choice]))
         for i in range(0, len(x[0])):
             x[mask_choice][i] = 0  # zero it out
         x[mask_choice][1]=1 # recall MSK is zero everywhere except the 2nd dimension

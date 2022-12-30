@@ -1,20 +1,11 @@
-import random
-forward_count = 0
-reverse_count = 0
-seq_len = 5
-direction = random.randint(0, 1)
-if direction == 0:
-    # has not been reversed
-    forward_count += 1
-    start_idx = 0
-    end_idx = seq_len
-    incr = 1
-else:
-    # has been reversed, direction==1
-    reverse_count += 1
-    start_idx = seq_len - 1
-    end_idx = -1
-    incr = -1
+direction = 0
+this_genre = "jazz"
+i = 3
+sub_id_int = 5
 
-for j in range(start_idx, end_idx, incr):
-    print(j)
+this_label = [direction, this_genre, i, sub_id_int, "dimension 0 is the label, 1 is the genre, 2 is the index into ref_samples of this sample, 3 is the sub ID"]
+
+print(this_label)
+
+this_label.append(3)
+print(this_label)

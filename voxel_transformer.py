@@ -383,6 +383,8 @@ class Transformer(nn.Module):
             for mask_idx in sample_mask_idxs:
                 if(mask_idx==-1):
                     continue
+                # else:
+                #     print("Sending index "+str(mask_idx)+" to MSK output layer")
                 temp = enc_src[i][mask_idx][:]
             #print("in Transformer's forward, temp is "+str(temp)+" and batchmsktokens is "+str(batch_MSK_tokens))
                 batch_MSK_tokens.append(temp)
