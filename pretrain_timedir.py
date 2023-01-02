@@ -492,7 +492,7 @@ if __name__ == "__main__":
                 print("correct counts for this epoch: " + str(bin_correct_val))
                 print("bin neg sample count: " + str(bin_neg_count_val))
                 print("number of samples: " + str(len(val_loader)))
-                print("epoch val masks:" + str(epoch_val_masks) + "\n\n")
+                #print("epoch val masks:" + str(epoch_val_masks) + "\n\n")
 
         if(save_model):
             modelcount=0

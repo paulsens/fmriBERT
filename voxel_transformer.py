@@ -285,7 +285,7 @@ class Transformer(nn.Module):
         self.mask_task=mask_task
         self.print_flag=print_flag
         super(Transformer, self).__init__()
-
+        print("Model has "+str(heads)+" many attention heads and "+str(num_layers)+" many layers and a forward expansion factor of "+str(forward_expansion))
         self.encoder = Encoder(
             voxel_dim,
             num_layers,

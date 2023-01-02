@@ -21,7 +21,7 @@ random_numbers=[]
 #   the third is the length of each half of the sample either 5 or 10, num_copies is the number of positive and negative training samples to create from each left-hand reference sample, test_copies is the number of repetitions we want from the -test- runs, from 1 to 4. Recall that each test run is the same 10 clips repeated four times. Default is 1, i.e each set of 10 only once/only the first ten from each test run.
 #     The second to last two determine the CLS and MSK tasks that will be trained on.
 # the default allowed genres is all of them, 0 to 9 inclusive
-def make_ptdsingle_data(threshold, hemisphere,  allowed_genres, seq_len=5, num_copies=1, include_test=1, test_copies=1, val_copies=1, standardize=1, detrend="linear", within_subjects=1, binary="arrowoftime", mask_task="reconstruct", seed=3, val_flag=0, verbose=1):
+def make_ptdsingle_data(threshold, hemisphere,  allowed_genres, seq_len=10, num_copies=1, include_test=1, test_copies=1, val_copies=1, standardize=1, detrend="linear", within_subjects=1, binary="arrowoftime", mask_task="reconstruct", seed=3, val_flag=0, verbose=1):
     #runs_dict is defined in Constants.py
     test_runs = runs_dict["Test"]
     training_runs = runs_dict["Training"]
@@ -40,6 +40,8 @@ def make_ptdsingle_data(threshold, hemisphere,  allowed_genres, seq_len=5, num_c
         holdout_range=range(0,1)
 
     random.seed(seed) #seed is passed in as a parameter, defaults to 3
+    # making k-many datasets for k-fold crossvalidation where k=len(holdout_range)
+    # i.e each fold has one run held out
     for holdout in holdout_range:
 
         training_samples = []
@@ -65,12 +67,12 @@ def make_ptdsingle_data(threshold, hemisphere,  allowed_genres, seq_len=5, num_c
 
         # which of the training runs is being held out to make this file
         # this number will be passed as a command line arg to pretrain.py to know which data to load
-        #  i.e k=12 fold cross validation
         for sub in ["001", "002", "003", "004", "005"]:
             # a list of indices for each genre, where to find each genre in the aggregate training data list
             #  give sub as a key to sub_genre_sample_dict to obtain the dictionary below
             genre_sample_dict = {0: [], 1: [], 2: [], 3: [], 4: [], 5: [], 6: [], 7: [], 8: [], 9: []}
             iter=0 #iterations of the next loop, resets per subject
+
             #opengenre_preproc_path is defined in Constants.py
             subdir = opengenre_preproc_path + "sub-sid" + sub + "/" + "sub-sid" + sub + "/"
             #load voxel data and labels
@@ -86,15 +88,15 @@ def make_ptdsingle_data(threshold, hemisphere,  allowed_genres, seq_len=5, num_c
             labels=[]
 
 
-            #detrend contains the name of the detrending we want, e.g linear or spline, within subjects is a binary flag
+            # detrend contains the name of the detrending we want, e.g linear or spline, within subjects is a binary flag
             # function is defined in helpers.py
             if(detrend!=None and within_subjects):
-                all_data=detrend_flattened(all_data, detrend)
-            #if the standardize flag is set, set mean to zero and variance to 1
-            #function is defined in helpers.py
+                all_data=detrend_flattened(all_data, detrend, num_tokens=NUM_TOKENS)
+            # if the standardize flag is set, set mean to zero and variance to 1
+            # function is defined in helpers.py
             if(standardize):
-                all_data = standardize_flattened(all_data)
-            #only remove the test_copies many repetitions (max 4) during the Test Runs
+                all_data = standardize_flattened(all_data, num_tokens=NUM_TOKENS)
+            # only remove the test_copies many repetitions (max 4) during the Test Runs
             # note that the dummy data described in the dataset documentation has already been removed, so we are start at index 0 in the loaded data
             n_test_runs = runs_dict["Test"]
             amount = OPENGENRE_TRSPERRUN*test_copies//4
@@ -196,6 +198,7 @@ def make_ptdsingle_data(threshold, hemisphere,  allowed_genres, seq_len=5, num_c
                 this_input=[coppy.deepcopy(CLS)]
                 # 1 means reversed, 0 means forward
                 direction = random.randint(0,1)
+                #print("direction is "+str(direction))
 
                 # this if-else block sets up the reversal or non-reversal
                 if direction==0:
@@ -206,6 +209,7 @@ def make_ptdsingle_data(threshold, hemisphere,  allowed_genres, seq_len=5, num_c
                     incr = 1
                 else:
                     # has been reversed, direction==1
+                    #print("we're reversing")
                     reverse_count+=1
                     start_idx = seq_len-1
                     end_idx = -1
@@ -213,6 +217,10 @@ def make_ptdsingle_data(threshold, hemisphere,  allowed_genres, seq_len=5, num_c
 
                 for j in range(start_idx, end_idx, incr):
                     this_input.append(coppy.deepcopy(ref_samples[i][j]))  # fill left hand sample
+
+                if direction==1 and (reverse_count==0 or reverse_count==1):
+                    print("Original sequence was "+str(ref_samples[i]))
+                    print("And this input is "+str(this_input))
 
                 # i use an augmented label to smuggle in some metadata that I might want
                 # can't include strings in order to be converted a tensor properly during training
@@ -225,9 +233,6 @@ def make_ptdsingle_data(threshold, hemisphere,  allowed_genres, seq_len=5, num_c
                 else:
                     training_samples.append(this_input)
                     training_labels.append(this_label)
-
-        #now every element of reference_samples should have num_copies many positive and negative partners in training_samples
-        #  training_labels[i] is a vector of [{0,1}, lh_genre, rh_genre] for training_sample[i]
 
         if(verbose):
             print("Training_samples has length "+str(len(training_samples))+", and each element has length "+str(len(training_samples[0]))+". Each of those has length "+str(len(training_samples[0][0]))+".\n\n")
@@ -282,7 +287,8 @@ def make_ptdsingle_data(threshold, hemisphere,  allowed_genres, seq_len=5, num_c
                     "\nrandom seed: "+str(seed)+
                     "\nRandom numbers were: "+str(random_numbers)+
                           "\n")
-
+    print("Final reverse count: "+str(reverse_count))
+    print("Final forward count: "+str(forward_count))
 if __name__=="__main__":
     #seq_len should be either 5 or 10
     #hemisphere is left or right
@@ -290,4 +296,4 @@ if __name__=="__main__":
     #num_copies is the number of positive and negative training samples to create from each left-hand sample
     #allowed_genres is a list of what it sounds like, remember range doesn't include right boundary
     # val_copies is the data augmentation factor for the held out run. That run will have ~1/10 the data of the full run, so it probably needs some augmentation
-    make_ptdsingle_data("23", hemisphere="left", seq_len=5, num_copies=1, standardize=1, detrend="linear", mask_task="same_genre", within_subjects=1, allowed_genres=range(0,10), val_flag=1)
+    make_ptdsingle_data("23", hemisphere="left", seq_len=10, num_copies=1, standardize=1, detrend="linear", mask_task="same_genre", within_subjects=1, allowed_genres=range(0,10), val_flag=1)

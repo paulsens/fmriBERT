@@ -106,7 +106,7 @@ if env == "local":
     EPOCHS = 1
 elif env == "discovery":
     ATTENTION_HEADS = 6
-    EPOCHS = 5
+    EPOCHS = 3
 
 #when the binary classi task is samegenre, and there are N samples from each genre,
 # then we could potentially have (N-1) yes pairs and another N-1 no pairs

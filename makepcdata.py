@@ -198,13 +198,15 @@ SEP = [0, 0, 1] + ([0] * (voxel_dim - 3))  # third dimension is reserved for sep
 
 # ------- at the moment we're only creating within-subject pairs, but the above global lists will hold samples from all subjects
 if __name__ == "__main__":
+    NUM_TOKENS=2 # number of dimensions reserved by tokens, e.g CLS/MSK
+    MAKE_PAIRS = False # are we pairing two sequences or is each input a single sequence
     do_subjects = True
     do_all = True
     include_imagined = True
     # do we want to partition out some percentage of the samples or do we want to hold out runs?
-    holdout_runs = True
+    holdout_runs = False
     # do_subjects will create and pickle each subject separately
-    # do_all assumes those subject pickled files already exist, so you can run both at once or do_subjects first
+    # do_all assumes those subject pickled files already exist, so you can run both at once or do_subjects first then do_all
     if do_subjects:
         #for sub in ["1088"]:
         for sub in sublist:
@@ -227,7 +229,7 @@ if __name__ == "__main__":
             # print("some samples before detrending: ")
             # print(sub_allruns[100])
             # print(sub_allruns[1000])
-            sub_allruns = detrend_flattened(sub_allruns, detrend="linear", token_dims=True)
+            sub_allruns = detrend_flattened(sub_allruns, detrend="linear", num_tokens=NUM_TOKENS)
             # print("some samples after detrending: ")
             # print(sub_allruns[100])
             # print(sub_allruns[1000])
@@ -235,7 +237,7 @@ if __name__ == "__main__":
             ylen = len(sub_allruns[0])
             #print("before standardize, shape is " + str(xlen) + "," + str(ylen))
 
-            sub_allruns = standardize_flattened(sub_allruns, token_dims=True)
+            sub_allruns = standardize_flattened(sub_allruns, num_tokens=NUM_TOKENS)
             xlen = len(sub_allruns)
             ylen = len(sub_allruns[0])
             #print("after standardize, shape is " + str(xlen) + "," + str(ylen))
@@ -343,38 +345,40 @@ if __name__ == "__main__":
                     IT_train_idxs, IT_val_idxs = None, None
                 #print("for subject "+str(sub)+", lengths are "+str(len(HC_train_idxs))+", "+str(len(HT_train_idxs))+", "+str(len(IC_train_idxs))+", "+str(len(IT_train_idxs))+", "+str(len(HC_val_idxs))+", "+str(len(HT_val_idxs))+", "+str(len(IC_val_idxs))+", "+str(len(IT_val_idxs))+", ")
 
-            trainidx_pairs = pair_idxs([HC_train_idxs, HT_train_idxs, IC_train_idxs, IT_train_idxs], num_pairs=4)
-            validx_pairs = pair_idxs([HC_val_idxs, HT_val_idxs, IC_val_idxs, IT_val_idxs], num_pairs=1)
+
 
             # print("trainidx_pairs is "+str(trainidx_pairs))
             # print("validx_pairs is "+str(validx_pairs))
             # break
             # finally create training data for this subject
-            for pair in trainidx_pairs:
-                # pair is two indexes into sub_cycles
-                # function returns a sample like [CLS token token token token SEP token ... ]
-                # and a label either True or False, for right now
-                sample, label = get_samplelabel(pair, sub_cycles, sub_allruns, CLS, SEP, run_idx, cycle_idx, cond_idx, timbre_idx)
-                if(label[0]==True):
-                    truecount+=1
-                else:
-                    falsecount+=1
-                sub_X.append(sample)
-                #print("appended "+str(sample)+" to sub_X")
-                sub_y.append(label)
-                #print("appended "+str(label)+" to sub_y")
+            if MAKE_PAIRS:
+                trainidx_pairs = pair_idxs([HC_train_idxs, HT_train_idxs, IC_train_idxs, IT_train_idxs], num_pairs=4)
+                validx_pairs = pair_idxs([HC_val_idxs, HT_val_idxs, IC_val_idxs, IT_val_idxs], num_pairs=1)
+                for pair in trainidx_pairs:
+                    # pair is two indexes into sub_cycles
+                    # function returns a sample like [CLS token token token token SEP token ... ]
+                    # and a label either True or False, for right now
+                    sample, label = get_samplelabel(pair, sub_cycles, sub_allruns, CLS, SEP, run_idx, cycle_idx, cond_idx, timbre_idx)
+                    if(label[0]==True):
+                        truecount+=1
+                    else:
+                        falsecount+=1
+                    sub_X.append(sample)
+                    #print("appended "+str(sample)+" to sub_X")
+                    sub_y.append(label)
+                    #print("appended "+str(label)+" to sub_y")
 
 
-            for valpair in validx_pairs:
-                valsample, vallabel = get_samplelabel(valpair, sub_cycles, sub_allruns, CLS, SEP, run_idx, cycle_idx, cond_idx, timbre_idx)
-                if(vallabel[0]==True):
-                    valtruecount+=1
-                else:
-                    valfalsecount+=1
-                sub_val_X.append(valsample)
-                sub_val_y.append(vallabel)
-            print("True and false count for subject "+str(shortsubid)+" were "+str(truecount)+", "+str(falsecount))
-            print("Validation split True and false count for subject " + str(shortsubid) + " were " + str(valtruecount) + ", " + str(valfalsecount))
+                for valpair in validx_pairs:
+                    valsample, vallabel = get_samplelabel(valpair, sub_cycles, sub_allruns, CLS, SEP, run_idx, cycle_idx, cond_idx, timbre_idx)
+                    if(vallabel[0]==True):
+                        valtruecount+=1
+                    else:
+                        valfalsecount+=1
+                    sub_val_X.append(valsample)
+                    sub_val_y.append(vallabel)
+                print("True and false count for subject "+str(shortsubid)+" were "+str(truecount)+", "+str(falsecount))
+                print("Validation split True and false count for subject " + str(shortsubid) + " were " + str(valtruecount) + ", " + str(valfalsecount))
 
             # save the training data for just this subject in case we want it later
             sub_save_path = save_path+shortsubid+"_"
