@@ -83,19 +83,40 @@ if __name__ == "__main__":
             idx = opts.index("-CLS_task_weight")
             CLS_task_weight= args[idx]
             if CLS_task_weight=="default":
-                CLS_task_weight=1
+                CLS_task_weight=0.5
             else:
                 CLS_task_weight=float(CLS_task_weight)
             MSK_task_weight = 1 - CLS_task_weight  # if we're just averaging then these two weights would both be 0.5
-
+        else:
+            CLS_task_weight = 0.5
+            MSK_task_weight = 1 - CLS_task_weight
         # whether or not we want to save the model after training, defaults to False if not provided
         if "-save_model" in opts:
             idx = opts.index("-save_model")
             save_model = args[idx]
             save_model = True if save_model=="True" else False
-
         else:
             save_model = False
+
+        if "-attention_heads" in opts:
+            idx = opts.index("-attention_heads")
+            attn_heads = int(args[idx])
+        else:
+            attn_heads = ATTENTION_HEADS # defined in Constants.py
+
+        if "-forward_expansion" in opts:
+            idx = opts.index("-forward_expansion")
+            f_exp = int(args[idx])
+        else:
+            f_exp = 4 # arbitrary default value
+
+        if "-num_layers" in opts:
+            idx = opts.index("-num_layers")
+            n_layers = int(args[idx])
+        else:
+            n_layers = 2 # arbitrary default value
+
+
 
         today = datetime.date.today()
         now = datetime.datetime.now()
@@ -109,7 +130,9 @@ if __name__ == "__main__":
             "MSK_task":"reconstruction",
             "COOL_DIVIDEND" : COOL_DIVIDEND,
             "NUM_TOKENS": NUM_TOKENS,
-            "ATTENTION_HEADS" : ATTENTION_HEADS,
+            "ATTENTION_HEADS" : attn_heads,
+            "forward_expansion" : f_exp,
+            "num_layers" : n_layers,
             "device" : str(device),
             "MSK_flag" : 1,
             "CLS_flag" : 1,
@@ -117,11 +140,11 @@ if __name__ == "__main__":
             "EPOCHS" : EPOCHS,
             "LEARNING_RATE" : LR, # set at top of this file or by command line argument
             #Have to manually set the name of the folder whose training data you want to use, since there will be many
-            "data_dir" : "2022-12-29", # yyyy-mm-dd
+            "data_dir" : "2023-01-01-10TR", # yyyy-mm-dd
             #Manually set the hemisphere and iteration number of the dataset you want to use in that folder
             "hemisphere": "left",
             "count" : str(thiscount), # count and thiscount can be read as the index of the heldout run
-            "max_sample_length":5, # manually set max_seq_length used in data creation, does not include CLS token
+            "max_sample_length":10, # manually set max_seq_length used in data creation, does not include CLS token
 
             "mask_variation":mask_variation, # whether to just pick one thing to mask at random, or 50% of picking two things
                                             # BERT uses the latter, but when sample length is only 5 i think two masks is too difficult for the model
@@ -187,12 +210,13 @@ if __name__ == "__main__":
         #train_X has shape (timesteps, max_length, voxel_dim)
         num_samples = len(train_X)
         max_length = len(train_X[0]) #should be seq_len + 1
-        assert (max_length == (hp_dict["max_sample_length"] + 1))
+        print("max length is "+str(max_length)+" and hpdict is "+str(hp_dict["max_sample_length"]))
+        #assert (max_length == (hp_dict["max_sample_length"] + 1))
         voxel_dim = len(train_X[0][0])
         print("voxel dim is "+str(voxel_dim))
         print("num samples is "+str(num_samples))
         #print("train Y is "+str(train_Y))
-
+        
 
         #convert to numpy arrays
         train_X = np.array(train_X)
@@ -228,7 +252,7 @@ if __name__ == "__main__":
 
         src_pad_sequence = [0]*voxel_dim # not used currently
 
-        model = Transformer(next_sequence_labels=CLS_task_labels, num_genres=num_genres, src_pad_sequence=src_pad_sequence, max_length=max_length, voxel_dim=voxel_dim, ref_samples=ref_samples, mask_task=hp_dict["MSK_task"], print_flag=0).to(hp_dict["device"])
+        model = Transformer(next_sequence_labels=CLS_task_labels, num_genres=num_genres, src_pad_sequence=src_pad_sequence, max_length=max_length, voxel_dim=voxel_dim, ref_samples=ref_samples, mask_task=hp_dict["MSK_task"], print_flag=0, heads = hp_dict["ATTENTION_HEADS"], num_layers=hp_dict["num_layers"], forward_expansion=hp_dict["forward_expansion"]).to(hp_dict["device"])
         model = model.float()
         model.to(hp_dict["device"])
 
@@ -280,7 +304,7 @@ if __name__ == "__main__":
                     sample_mask_indices = []  # will contain two ints, see comment for batch_mask_indices above
 
                     #no return value from apply_masks, everything is updated by reference in the lists
-                    apply_masks_timedir(X_batch[x], y_batch[x], ref_samples, hp_dict, mask_variation, ytrue_multi_batch, batch_mask_indices, sample_mask_indices, mask_task=hp_dict["MSK_task"], log=log, heldout=False)
+                    apply_masks_timedir(X_batch[x], y_batch[x], ref_samples, hp_dict, mask_variation, ytrue_multi_batch, batch_mask_indices, sample_mask_indices, mask_task=hp_dict["MSK_task"], log=log, heldout=False, task=hp_dict["task"])
 
                 for y in range(0,hp_dict["BATCH_SIZE"]):
                     if(y_batch[y][0]==1): # then it WAS reversed
@@ -325,10 +349,10 @@ if __name__ == "__main__":
                 loss_multi = criterion_multi(ypred_multi_batch, ytrue_multi_batch)
 
                 # the total loss of this sample depends on whether we're doing simultaneous training or not
-                if hp_dict["task"] == "CLSonly":
-                    loss = loss_bin #toy example for just same-genre task
+                if hp_dict["task"] == "CLS_only":
+                    loss = loss_bin
                     acc = get_accuracy(ypred_bin_batch, ytrue_bin_batch, hp_dict["CLS_task"], log)
-                elif hp_dict["task"] == "MSKonly":
+                elif hp_dict["task"] == "MSK_only":
                     loss = loss_multi
                     acc = get_accuracy(ypred_multi_batch, ytrue_multi_batch, hp_dict["MSK_task"], log)
 
@@ -379,7 +403,7 @@ if __name__ == "__main__":
                         for x in range(0, hp_dict["BATCH_SIZE"]):
                             sample_mask_indices_val = [] # see comment above for sample_mask_indices
                             # no return value from apply_masks, everything is updated by reference in the lists
-                            apply_masks(X_batch_val[x], y_batch_val[x], ref_samples, hp_dict, mask_variation,   ytrue_multi_batch_val, batch_mask_indices_val, sample_mask_indices_val, mask_task=hp_dict["MSK_task"], log=log, heldout=True)
+                            apply_masks_timedir(X_batch_val[x], y_batch_val[x], ref_samples, hp_dict, mask_variation,   ytrue_multi_batch_val, batch_mask_indices_val, sample_mask_indices_val, mask_task=hp_dict["MSK_task"], log=log, heldout=True)
 
                         # just used as metadata/bookkeeping/debugging, no analogue for training split
                         epoch_val_masks.append(batch_mask_indices_val)
@@ -423,10 +447,10 @@ if __name__ == "__main__":
                         loss_multi_val = criterion_multi(ypred_multi_batch_val, ytrue_multi_batch_val)
 
                         # total loss depends on whether we're doing simultaneous training
-                        if hp_dict["task"] == "CLSonly":
+                        if hp_dict["task"] == "CLS_only":
                             loss = loss_bin_val  # toy example for just same-genre task
                             acc = get_accuracy(ypred_bin_batch_val, ytrue_bin_batch_val, hp_dict["CLS_task"],log)
-                        elif hp_dict["task"] == "MSKonly":
+                        elif hp_dict["task"] == "MSK_only":
                             loss = loss_multi_val
                             acc = get_accuracy(ypred_multi_batch_val, ytrue_multi_batch_val, hp_dict["MSK_task"], log)
 

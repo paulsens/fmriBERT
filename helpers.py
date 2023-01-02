@@ -272,16 +272,15 @@ def get_accuracy(y_pred, y_true, task, log=None):
 #calculate mean of each channel across timesteps and subtract it from each timestep
 #calculate new standard deviation of each channel and divide each timestep by that amount
 #voxel data should already be TRs by COOL_DIVIDEND after accounting for test_copies
-def standardize_flattened(voxel_data, token_dims=True):
+def standardize_flattened(voxel_data, num_tokens=2):
     stand = copy.deepcopy(voxel_data)
 
     TRs = len(voxel_data)
 
     channels = len(voxel_data[0])
-    if token_dims:
-        loopstart=3
-    else:
-        loopstart = 0
+
+    # the first num_tokens-many dimensions are reserved for tokens, don't detrend those
+    loopstart=num_tokens
     for channel in range(loopstart, channels): #don't do this for first three channels, they're just token flag dimensions
 
         mean = 0
@@ -314,7 +313,7 @@ def standardize_flattened(voxel_data, token_dims=True):
 
     return stand
 
-def detrend_flattened(voxel_data, detrend="linear", token_dims=False):
+def detrend_flattened(voxel_data, detrend="linear", num_tokens=2):
     # each voxel is detrended independently so fix the voxel i.e the column and loop over the timesteps
     n_columns = len(voxel_data[0])
     n_rows = len(voxel_data)
@@ -325,11 +324,8 @@ def detrend_flattened(voxel_data, detrend="linear", token_dims=False):
     n_plotpoints = 7200
     y_plots=[]
     model=None
-    # dimensions 0, 1, and 2 in voxel space are just token dimensions, don't detrend those
-    if token_dims:
-        loopstart = 3
-    else:
-        loopstart = 0
+    # the first num_tokens-many dimensions are reserved for tokens, don't detrend those
+    loopstart = num_tokens
     for voxel in range(loopstart, n_columns):
         y_train = voxel_data[:,voxel]
         maxv = max(x_train)
@@ -507,7 +503,7 @@ def apply_masks(x, y, ref_samples, hp_dict, mask_variation, ytrue_multi_batch, s
     #add mask indices for this one sample to batch list
     batch_mask_indices.append(sample_mask_indices)
 
-def apply_masks_timedir(x, y, ref_samples, hp_dict, mask_variation, ytrue_multi_batch, batch_mask_indices, sample_mask_indices, mask_task, log, heldout=False):
+def apply_masks_timedir(x, y, ref_samples, hp_dict, mask_variation, ytrue_multi_batch, batch_mask_indices, sample_mask_indices, mask_task, log, heldout=False, task="both"):
 
     # if we want to mask two timesteps half the time and only one timestep the other half of the time
     if (mask_variation):
@@ -516,7 +512,7 @@ def apply_masks_timedir(x, y, ref_samples, hp_dict, mask_variation, ytrue_multi_
 
     # else, just pick one token to mask instead of worrying about how BERT does it
     else:
-        mask_choice = randint(1, 5)  # pick a token to mask, todo: need a more robust system instead of magic numbers
+        mask_choice = randint(1, len(x)-1)  # pick a token to mask, todo: need a more robust system instead of magic numbers
 
         if(mask_task=="reconstruction"):
             #the label is just the TR that we chose to mask
@@ -529,9 +525,11 @@ def apply_masks_timedir(x, y, ref_samples, hp_dict, mask_variation, ytrue_multi_
         # i could just replace this with a clone of the MSK tensor but I had some issues that I can't remember, so for now I'm just setting it to the mask token's values by hand
         # print("Masking TR at index "+str(mask_choice))
         # print("Masking "+str(x[mask_choice]))
-        for i in range(0, len(x[0])):
-            x[mask_choice][i] = 0  # zero it out
-        x[mask_choice][1]=1 # recall MSK is zero everywhere except the 2nd dimension
+        # if the pretraining task is CLS only, don't do anything to it
+        if task!=["CLS_only"]:
+            for i in range(0, len(x[0])):
+                x[mask_choice][i] = 0  # zero it out
+            x[mask_choice][1]=1 # recall MSK is zero everywhere except the 2nd dimension
 
         sample_mask_indices.append(mask_choice)
         # to enable future developments when there are two masks, I want sample_mask_indices to always have length 2
