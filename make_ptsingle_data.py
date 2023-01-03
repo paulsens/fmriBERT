@@ -21,7 +21,7 @@ random_numbers=[]
 #   the third is the length of each half of the sample either 5 or 10, num_copies is the number of positive and negative training samples to create from each left-hand reference sample, test_copies is the number of repetitions we want from the -test- runs, from 1 to 4. Recall that each test run is the same 10 clips repeated four times. Default is 1, i.e each set of 10 only once/only the first ten from each test run.
 #     The second to last two determine the CLS and MSK tasks that will be trained on.
 # the default allowed genres is all of them, 0 to 9 inclusive
-def make_ptdsingle_data(threshold, hemisphere,  allowed_genres, seq_len=10, num_copies=1, include_test=1, test_copies=1, val_copies=1, standardize=1, detrend="linear", within_subjects=1, binary="arrowoftime", mask_task="reconstruct", seed=3, val_flag=0, verbose=1):
+def make_ptdsingle_data(threshold, hemisphere,  allowed_genres, seq_len=10, num_copies=1, include_test=1, test_copies=1, val_copies=1, standardize=1, detrend="linear", within_subjects=1, binary="timedir", mask_task="reconstruct", seed=3, val_flag=0, verbose=1):
     #runs_dict is defined in Constants.py
     test_runs = runs_dict["Test"]
     training_runs = runs_dict["Training"]
@@ -192,7 +192,7 @@ def make_ptdsingle_data(threshold, hemisphere,  allowed_genres, seq_len=10, num_
             if this_genre not in allowed_genres:
                 continue #skip the rest of this iteration
 
-            if(binary=="arrowoftime"): # arrow of time task, possibly called temporal orientation instead?
+            if(binary=="timedir"): # time direction task, possibly called temporal orientation instead?
                 # 50-50 chance of this sequence being reversed, decode whether it's reversed (1) or not (0)
                 # the question at hand, then, is "HAS THIS SEQUENCE BEEN REVERSED?"
                 this_input=[coppy.deepcopy(CLS)]
@@ -242,7 +242,7 @@ def make_ptdsingle_data(threshold, hemisphere,  allowed_genres, seq_len=10, num_
         #save training_samples and training_labels
         time = date.today()
         #this_dir = opengenre_preproc_path+"training_data/cross_val/"+str(time)+"/"
-        this_dir = opengenre_preproc_path+"training_data/timedir/"+str(time)+"/"
+        this_dir = opengenre_preproc_path+"training_data/timedir/"+str(time)+"-"+str(seq_len)+"TR/"
 
         if not os.path.exists(this_dir):
             os.mkdir(this_dir)

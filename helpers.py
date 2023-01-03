@@ -653,7 +653,55 @@ def make_sub_cycle_dict(targets_dir, code_dict, sub_info_dict, sub_cycle_dict):
     # done with all subjects
     # dict was passed by reference, don't need to return anything
 
+# takes timbre ("Clarinet" or "Trumpet"), condition ("Heard" or "Imagined") and task ("Timbre_only" or "Condition_only" or "both")
+def make_timbre_decode_label(timbre, condition, task):
+    label = None
+    # if we only want to decode timbre
+    if task=="Timbre_only":
+        # as guiding rule of thumb, let's always arrange in alphabetical order
+        if timbre=="Clarinet":
+            # onehot probability distribution for clarinet
+            label = [1, 0]
+        elif timbre=="Trumpet":
+            label = [0, 1]
+        else:
+            print("Illegal timbre label, got "+str(timbre)+", quitting...")
+            quit(0)
 
+    # if we only want to decode condition
+    elif task=="Condition_only":
+        if condition=="Heard":
+            label = [1 ,0]
+        elif condition=="Imagined":
+            label = [0, 1]
+        else:
+            print("Illegal condition label, got "+str(condition)+", quitting...")
+            quit(0)
+
+    # if we want to decode condition+timbre
+    elif task=="both":
+        if condition=="Heard" and timbre=="Clarinet":
+            label = [1, 0, 0, 0]
+        elif condition=="Heard" and timbre=="Trumpet":
+            label = [0, 1, 0, 0]
+        elif condition=="Imagined" and timbre=="Clarinet":
+            label = [0, 0, 1, 0]
+        elif condition=="Imagined" and timbre=="Trumpet":
+            label = [0, 0, 0, 1]
+        else:
+            print("Illegal condition or timbre label, got "+str(condition)+" and "+str(timbre)+", quitting...")
+            quit(0)
+
+    else:
+        print("Illegal task name, got "+str(task)+", quitting...")
+        quit(0)
+
+    # extra line of defense
+    if label is None:
+        print("Somehow label is still None, something is wrong, quitting...")
+        quit(0)
+
+    return label
 
 
 if __name__=="__main__":
@@ -667,8 +715,8 @@ if __name__=="__main__":
     #  combines all 8 runs for each subject, note first 10 of 410 TRs in each run are dummy data and not used
     #   pass in the hemisphere and the probability inclusion threshold as a string, and optional verbose parameter, default is True
     NUM_TOKENS = 2 # CLS, SEP, MSK, etc
-    mask_flatten_combine_opengenre("left", "23", NUM_TOKENS=NUM_TOKENS)
-    mask_flatten_combine_opengenre("right", "23", NUM_TOKENS=NUM_TOKENS)
+    mask_flatten_combine_opengenre("left", "23", set="pitchclass", NUM_TOKENS=NUM_TOKENS)
+    mask_flatten_combine_opengenre("right", "23", set="pitchclass", NUM_TOKENS=NUM_TOKENS)
     #make_pretraining_data("23", "left")
     #print("none")
 

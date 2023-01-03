@@ -272,8 +272,7 @@ if __name__=="__main__":
                 val_loss += loss.item()
                 val_acc += acc.item()
 
-            # after batch
-        # after with torch.no_grad()
+        # end epoch
         # print training stats for this epoch
         print("Epoch bin training stats:")
         print(f'Epoch {e+0:03}: | Loss: {epoch_loss/len(train_loader):.5f} | Acc: {epoch_acc/len(train_loader):.3f}')

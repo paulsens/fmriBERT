@@ -7,6 +7,7 @@ import pickle
 import numpy as np
 import copy
 import random
+from datetime import date
 
 
 #------- functions
@@ -110,7 +111,35 @@ def get_samplelabel(pair, sub_cycles, sub_allruns, CLS, SEP, run_idx, cycle_idx,
 
     return sample, detailed_label
 
+# get a pair of indexes into a list of cycles, create the training sample and label
+# different from get_samplelabel, doesn't do pairs of subsequences, but rather just a single subsequence for timbre decoding
+def get_samplelabel_single(this_idx, sub_cycles, sub_allruns, CLS, run_idx, cycle_idx, cond_idx, timbre_idx):
 
+    cycle_info = sub_cycles[this_idx]
+    subid = cycle_info[1]
+
+    run_n = cycle_info[run_idx]
+    cycle_n = cycle_info[cycle_idx]
+    cond = cycle_info[cond_idx]
+    timbre = cycle_info[timbre_idx]
+
+
+    # dont forget that cycle_n and run_n are strings by default
+    start_TR = 6+(11*int(cycle_n))+(233*int(run_n))
+    end_TR = start_TR+5
+
+
+    # finally create the training sample
+    sample=[CLS]
+    for i in range(start_TR, end_TR):
+        sample.append(sub_allruns[i])
+
+    # detailed labels facilitate analysis of results by keeping metadata about how we created this sample+label
+    detailed_label = (timbre, cond, subid, timbre, run_n, cycle_n)
+    #print("detailed label is "+str(detailed_label))
+
+
+    return sample, detailed_label
 
 
 
@@ -120,12 +149,13 @@ def get_samplelabel(pair, sub_cycles, sub_allruns, CLS, SEP, run_idx, cycle_idx,
 
 ###### parameters and paths
 debug=1
+NUM_TOKENS = 2  # number of dimensions reserved by tokens, e.g CLS/MSK
 hemisphere="left"
 threshold="23"
 ROI="STG"
 n_runs=8 #all subjects had 8 runs in this dataset
 sublist = ["1088", "1125", "1401", "1410", "1419", "1427", "1541", "1571", "1581", "1660", "1661", "1664", "1665", "1668", "1672", "1678", "1680"]
-ROIfile_str=ROI+"_allruns"+str(hemisphere)+"_t"+str(threshold)+".p"
+ROIfile_str=ROI+"_allruns"+str(hemisphere)+"_t"+str(threshold)+"_"+str(NUM_TOKENS)+"tokens.p"
 
 ####### load important dictionaries, made by make_pitchclass_dicts.py
 # targets_dir is imported from Constants.py and depends on "env" variable (also defined in Constants.py)
@@ -181,10 +211,15 @@ info_idx = {
 #------ dictionaries are all loaded at this point
 
 
-#where is the training data?
+#where is the training data going to be saved?
 data_path = pitchclass_preproc_path
-save_path = "/Volumes/External/pitchclass/finetuning/sametimbre/datasets/8/"
-#just put the sub-sid00xxxx in twice between these
+# save training_samples and training_labels
+time = date.today()
+seq_len = 5
+save_path = "/Volumes/External/pitchclass/finetuning/timbredecode/datasets/"+str(time)+"-"+str(seq_len)+"TR/"
+
+if not os.path.exists(save_path):
+    os.mkdir(save_path)
 
 all_X = []
 all_y = []
@@ -198,7 +233,6 @@ SEP = [0, 0, 1] + ([0] * (voxel_dim - 3))  # third dimension is reserved for sep
 
 # ------- at the moment we're only creating within-subject pairs, but the above global lists will hold samples from all subjects
 if __name__ == "__main__":
-    NUM_TOKENS=2 # number of dimensions reserved by tokens, e.g CLS/MSK
     MAKE_PAIRS = False # are we pairing two sequences or is each input a single sequence
     do_subjects = True
     do_all = True
@@ -210,10 +244,30 @@ if __name__ == "__main__":
     if do_subjects:
         #for sub in ["1088"]:
         for sub in sublist:
+            clarinet_count=0
+            trumpet_count=0
+            heard_count=0
+            imagined_count=0
+            hc_count=0
+            ht_count=0
+            ic_count=0
+            it_count=0
+
+            val_clarinet_count=0
+            val_trumpet_count=0
+            val_heard_count=0
+            val_imagined_count=0
+            val_hc_count=0
+            val_ht_count=0
+            val_ic_count=0
+            val_it_count=0
+
+            # these are only used when MAKE_PAIRS
             truecount=0
             falsecount=0
             valtruecount=0
             valfalsecount=0
+
             sub_X = []
             sub_y = []
             sub_val_X = []
@@ -229,15 +283,21 @@ if __name__ == "__main__":
             # print("some samples before detrending: ")
             # print(sub_allruns[100])
             # print(sub_allruns[1000])
+
             sub_allruns = detrend_flattened(sub_allruns, detrend="linear", num_tokens=NUM_TOKENS)
             # print("some samples after detrending: ")
             # print(sub_allruns[100])
             # print(sub_allruns[1000])
+
             xlen = len(sub_allruns)
             ylen = len(sub_allruns[0])
             #print("before standardize, shape is " + str(xlen) + "," + str(ylen))
 
             sub_allruns = standardize_flattened(sub_allruns, num_tokens=NUM_TOKENS)
+            # print("some samples after standardizing: ")
+            # print(sub_allruns[100])
+            # print(sub_allruns[1000])
+
             xlen = len(sub_allruns)
             ylen = len(sub_allruns[0])
             #print("after standardize, shape is " + str(xlen) + "," + str(ylen))
@@ -291,7 +351,7 @@ if __name__ == "__main__":
                         elif(timbre=="Trumpet"):
                             IT_idxs.append(idx)
 
-                # so now the four lists have all their corresponding indexes into sub_cycles
+                # so now the four lists have all their corresponding indexes wrt sub_cycles
                 # split them up into training and validation
                 HC_train_idxs, HC_val_idxs = partition_idxs(HC_idxs, 6)
                 HT_train_idxs, HT_val_idxs = partition_idxs(HT_idxs, 6)
@@ -379,6 +439,136 @@ if __name__ == "__main__":
                     sub_val_y.append(vallabel)
                 print("True and false count for subject "+str(shortsubid)+" were "+str(truecount)+", "+str(falsecount))
                 print("Validation split True and false count for subject " + str(shortsubid) + " were " + str(valtruecount) + ", " + str(valfalsecount))
+
+            # if not MAKE_PAIRS
+            else:
+                # give it the old ocular patdown
+                print([HC_train_idxs, HT_train_idxs, IC_train_idxs, IT_train_idxs])
+                print([HC_val_idxs, HT_val_idxs, IC_val_idxs, IT_val_idxs])
+
+                # now fill sub_X sub_y sub_val_X and sub_val_y
+
+                # create Heard Clarinet training data
+                for HC_train_idx in HC_train_idxs:
+                    sample, label = get_samplelabel_single(HC_train_idx, sub_cycles, sub_allruns, CLS, run_idx, cycle_idx, cond_idx, timbre_idx)
+
+                    # update metadata
+                    hc_count+=1
+                    clarinet_count+=1
+                    heard_count+=1
+
+                    sub_X.append(sample)
+                    #print("appended "+str(sample)+" to sub_X")
+                    sub_y.append(label)
+                    #print("appended "+str(label)+" to sub_y")
+
+                # create Heard Trumpet training data
+                for HT_train_idx in HT_train_idxs:
+                    sample, label = get_samplelabel_single(HT_train_idx, sub_cycles, sub_allruns, CLS, run_idx, cycle_idx, cond_idx, timbre_idx)
+
+                    # update metadata
+                    ht_count+=1
+                    trumpet_count+=1
+                    heard_count+=1
+
+                    sub_X.append(sample)
+                    #print("appended "+str(sample)+" to sub_X")
+                    sub_y.append(label)
+                    #print("appended "+str(label)+" to sub_y")
+
+                # create Heard Clarinet validation data
+                for HC_val_idx in HC_val_idxs:
+                    sample, label = get_samplelabel_single(HC_val_idx, sub_cycles, sub_allruns, CLS, run_idx, cycle_idx, cond_idx, timbre_idx)
+
+                    # update metadata
+                    val_hc_count+=1
+                    val_clarinet_count+=1
+                    val_heard_count+=1
+
+                    sub_val_X.append(sample)
+                    #print("appended "+str(sample)+" to sub_X")
+                    sub_val_y.append(label)
+                    #print("appended "+str(label)+" to sub_y")
+
+                # create Heard Trumpet validation data
+                for HT_val_idx in HT_val_idxs:
+                    sample, label = get_samplelabel_single(HT_val_idx, sub_cycles, sub_allruns, CLS, run_idx, cycle_idx, cond_idx, timbre_idx)
+
+                    # update metadata
+                    val_ht_count+=1
+                    val_trumpet_count+=1
+                    val_heard_count+=1
+
+                    sub_val_X.append(sample)
+                    #print("appended "+str(sample)+" to sub_X")
+                    sub_val_y.append(label)
+                    #print("appended "+str(label)+" to sub_y")
+
+                # do it all again if we're including imagined data
+                # please for the love of god modularize all this
+                if include_imagined:
+                    # create Imagined Clarinet training data
+                    for IC_train_idx in IC_train_idxs:
+                        sample, label = get_samplelabel_single(IC_train_idx, sub_cycles, sub_allruns, CLS, run_idx,
+                                                               cycle_idx, cond_idx, timbre_idx)
+                        # update metadata
+                        ic_count+=1
+                        clarinet_count+=1
+                        imagined_count+=1
+
+                        sub_X.append(sample)
+                        # print("appended "+str(sample)+" to sub_X")
+                        sub_y.append(label)
+                        # print("appended "+str(label)+" to sub_y")
+
+                    # create Imagined Trumpet training data
+                    for IT_train_idx in IT_train_idxs:
+                        sample, label = get_samplelabel_single(IT_train_idx, sub_cycles, sub_allruns, CLS, run_idx,
+                                                               cycle_idx, cond_idx, timbre_idx)
+                        # update metadata
+                        it_count+=1
+                        trumpet_count+=1
+                        imagined_count+=1
+
+                        sub_X.append(sample)
+                        # print("appended "+str(sample)+" to sub_X")
+                        sub_y.append(label)
+                        # print("appended "+str(label)+" to sub_y")
+
+                    # create Imagined Clarinet validation data
+                    for IC_val_idx in IC_val_idxs:
+                        sample, label = get_samplelabel_single(IC_val_idx, sub_cycles, sub_allruns, CLS, run_idx,
+                                                               cycle_idx, cond_idx, timbre_idx)
+                        # update metadata
+                        val_ic_count+=1
+                        val_clarinet_count+=1
+                        val_imagined_count+=1
+
+                        sub_val_X.append(sample)
+                        # print("appended "+str(sample)+" to sub_X")
+                        sub_val_y.append(label)
+                        # print("appended "+str(label)+" to sub_y")
+
+                    # create Imagined Trumpet validation data
+                    for IT_val_idx in IT_val_idxs:
+                        sample, label = get_samplelabel_single(IT_val_idx, sub_cycles, sub_allruns, CLS, run_idx,
+                                                               cycle_idx, cond_idx, timbre_idx)
+                        # update metadata
+                        val_it_count+=1
+                        val_trumpet_count+=1
+                        val_imagined_count+=1
+
+                        sub_val_X.append(sample)
+                        # print("appended "+str(sample)+" to sub_X")
+                        sub_val_y.append(label)
+                        # print("appended "+str(label)+" to sub_y")
+
+                # print all that crap for this subject
+                metadata_dict = {"heard_count":heard_count, "hc_count":hc_count, "ht_count":ht_count, "val_heard_count":val_heard_count, "val_hc_count":val_hc_count, "val_ht_count":val_ht_count,
+                                 "imagined_count":imagined_count, "ic_count":ic_count, "it_count":it_count, "val_imagined_count":val_imagined_count, "val_ic_count":val_ic_count, "val_it_count":val_it_count, "clarinet_count":clarinet_count, "trumpet_count":trumpet_count, "val_clarinet_count":val_clarinet_count, "val_trumpet_count":val_trumpet_count, "Length of train X":len(sub_X), "Length of train y":len(sub_y), "Length of val X":len(sub_val_X), "Length of val y":len(sub_val_y)
+                                 }
+
+                print("Metadata for subject "+str(sub)+": "+str(metadata_dict))
 
             # save the training data for just this subject in case we want it later
             sub_save_path = save_path+shortsubid+"_"

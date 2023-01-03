@@ -238,7 +238,7 @@ class Decoder(nn.Module):
 class Transformer(nn.Module):
     def __init__(
             self,
-            next_sequence_labels,
+            num_CLS_labels,
             num_genres,
             src_pad_sequence,
             voxel_dim=8,
@@ -256,6 +256,8 @@ class Transformer(nn.Module):
         self.mask_task=mask_task
         self.print_flag=print_flag
         super(Transformer, self).__init__()
+        print("Model has " + str(heads) + " many attention heads and " + str(
+            num_layers) + " many layers and a forward expansion factor of " + str(forward_expansion))
 
         self.encoder = Encoder(
             voxel_dim,
@@ -268,7 +270,7 @@ class Transformer(nn.Module):
         )
 
         self.decoder = Decoder(
-            next_sequence_labels,
+            num_CLS_labels,
             num_genres,
             voxel_dim,
             num_layers,
@@ -281,7 +283,7 @@ class Transformer(nn.Module):
 
         self.output_layer_bin = nn.Sequential(
             nn.Linear(voxel_dim, voxel_dim//2),
-            nn.Linear(voxel_dim//2, next_sequence_labels),
+            nn.Linear(voxel_dim//2, num_CLS_labels),
             nn.Softmax(dim=1)
             #nn.ReLU()
 
@@ -300,7 +302,7 @@ class Transformer(nn.Module):
         self.output_layer_finetune = nn.Sequential(
             # nn.Linear(voxel_dim, voxel_dim//2),
             # nn.Linear(voxel_dim//2, next_sequence_labels),
-            nn.Linear(voxel_dim,next_sequence_labels),
+            nn.Linear(voxel_dim,num_CLS_labels),
             nn.Softmax(dim=1)
             #nn.ReLU()
 

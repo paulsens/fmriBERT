@@ -14,11 +14,11 @@ path3 ="/STG_masks/"
 ant_f = "STG_ant_linearresamp.nii.gz"
 post_f = "STG_post_linearresamp.nii.gz"
 
-# sublist = ["1088", "1125", "1401", "1410", "1419", "1427", "1541", "1571", "1581", "1660", "1661", "1664", "1665", "1668", "1672", "1678", "1680"]
-# dataset = "pitchclass"
+sublist = ["1088", "1125", "1401", "1410", "1419", "1427", "1541", "1571", "1581", "1660", "1661", "1664", "1665", "1668", "1672", "1678", "1680"]
+dataset = "pitchclass"
 
-sublist = ["1", "2", "3", "4", "5"]
-dataset = "opengenre"
+# sublist = ["1", "2", "3", "4", "5"]
+# dataset = "opengenre"
 
 #just for testing
 #dataset = "pitchclass"
