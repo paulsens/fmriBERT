@@ -228,8 +228,8 @@ if __name__ == "__main__":
             train_y.append(this_label)
 
         for detailed_val_label in val_y_detailed:
-            timbre = detailed_label[0]
-            condition = detailed_label[1]
+            timbre = detailed_val_label[0]
+            condition = detailed_val_label[1]
             this_label = make_timbre_decode_label(timbre, condition, hp_dict["CLS_task"])
 
             val_y.append(this_label)
