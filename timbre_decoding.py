@@ -179,10 +179,10 @@ if __name__ == "__main__":
             data_path = "/Volumes/External/pitchclass/finetuning/sametimbre/datasets/2/"
         if env=="discovery":
             pretrained_model_states = "/isi/music/auditoryimagery2/seanthesis/timedir/pretrain/trained_models/" + hp_dict["pretrain_task"] + "/states_" + pretrain_idx + "0.pt"
-            data_path = "/isi/music/auditoryimagery2/seanthesis/timedir/finetune/timbredecode/datasets/"+hp_dict["data_path"]+"/"
+            data_path = "/isi/music/auditoryimagery2/seanthesis/timedir/finetune/datasets/"+hp_dict["data_dir"]+"/"
 
         # set up logfile, FINETUNE_TIMBRE_LOG_PATH is defined in Constants.py
-        today_dir = FINETUNE_TIMBRE_LOG_PATH + str(hp_dict["task"]) + "/" + str(today) + "/"
+        today_dir = FINETUNE_TIMBRE_LOG_PATH + str(hp_dict["CLS_task"]) + "/" + str(today) + "/"
         if not (os.path.exists(today_dir)):
             os.mkdir(today_dir)
         if (thiscount != None):
@@ -264,7 +264,7 @@ if __name__ == "__main__":
         val_loader = DataLoader(dataset=val_data, batch_size=hp_dict["BATCH_SIZE"], shuffle=False)
 
         # create the model
-        model = Transformer(next_sequence_labels=hp_dict["num_CLS_labels"], num_genres=10, src_pad_sequence=src_pad_sequence, max_length=12,
+        model = Transformer(num_CLS_labels=hp_dict["num_CLS_labels"], num_genres=10, src_pad_sequence=src_pad_sequence, max_length=12,
                             voxel_dim=voxel_dim, ref_samples=None, mask_task=None, print_flag=0)
 
         # if we want to load pretrained weights:
@@ -312,7 +312,7 @@ if __name__ == "__main__":
 
                 optimizer.zero_grad()  # reset gradient to zero before each mini-batch
                 for j in range(0, hp_dict["BATCH_SIZE"]):
-                    ytrue_CLS_batch.append(y_batch[j]) # i dont really need to do this, but it's legacy/holdover crap
+                    ytrue_CLS_batch.append(y_batch[j].tolist()) # i dont really need to do this, but it's legacy/holdover crap
 
                 # convert label lists to pytorch tensors
                 ytrue_CLS_batch = np.array(ytrue_CLS_batch)
@@ -323,7 +323,7 @@ if __name__ == "__main__":
                 ypred_CLS_batch = model(X_batch, mask_indices="finetune")
                 ypred_CLS_batch = ypred_CLS_batch.float()
                 loss = criterion_CLS(ypred_CLS_batch, ytrue_CLS_batch)
-                acc = get_accuracy(ypred_CLS_batch, ytrue_CLS_batch, hp_dict["task"], log)
+                acc = get_accuracy(ypred_CLS_batch, ytrue_CLS_batch, hp_dict["CLS_task"], log)
                 epoch_loss += loss.item()
                 epoch_acc += acc.item()
 
@@ -355,7 +355,7 @@ if __name__ == "__main__":
                     ytrue_CLS_batch_val = []  # list of batch targets for binary classification task
 
                     for j in range(0, hp_dict["BATCH_SIZE"]):
-                        ytrue_CLS_batch_val.append(y_batch_val[j])  # legacy crap doesn't really need to happen
+                        ytrue_CLS_batch_val.append(y_batch_val[j].tolist())  # legacy crap doesn't really need to happen
 
                     # convert label lists to pytorch tensors
                     ytrue_CLS_batch_val = np.array(ytrue_CLS_batch_val)
@@ -377,7 +377,7 @@ if __name__ == "__main__":
 
                     ypred_CLS_batch_val = ypred_CLS_batch_val.float()
                     loss = criterion_CLS(ypred_CLS_batch_val, ytrue_CLS_batch_val)
-                    acc = get_accuracy(ypred_CLS_batch_val, ytrue_CLS_batch_val, hp_dict["task"], log)
+                    acc = get_accuracy(ypred_CLS_batch_val, ytrue_CLS_batch_val, hp_dict["CLS_task"], log)
                     val_loss += loss.item()
                     val_acc += acc.item()
 
