@@ -653,8 +653,17 @@ def make_sub_cycle_dict(targets_dir, code_dict, sub_info_dict, sub_cycle_dict):
     # done with all subjects
     # dict was passed by reference, don't need to return anything
 
-# takes timbre ("Clarinet" or "Trumpet"), condition ("Heard" or "Imagined") and task ("Timbre_only" or "Condition_only" or "both")
-def make_timbre_decode_label(timbre, condition, task):
+# detailed_label = (timbre, cond, subid, run_n, cycle_n, majorkey, stimnote, stimoctave, vividness, GoF)
+def make_timbre_decode_label(detailed_label, task):
+    timbre = detailed_label[0]  # True/False is the first thing in the tuple
+    condition = detailed_label[1]
+    subid = detailed_label[2]
+    majorkey = detailed_label[5]
+    stimnote = detailed_label[6]
+    stimoctave = detailed_label[7]
+    vividness = detailed_label[8]
+    GoF = detailed_label[9]
+
     label = None
     # if we only want to decode timbre
     if task=="Timbre_only":
@@ -692,6 +701,9 @@ def make_timbre_decode_label(timbre, condition, task):
             print("Illegal condition or timbre label, got "+str(condition)+" and "+str(timbre)+", quitting...")
             quit(0)
 
+    # pitch class decoding
+    elif task=="pitchclass":
+        quit(0)
     else:
         print("Illegal task name, got "+str(task)+", quitting...")
         quit(0)

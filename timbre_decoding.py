@@ -142,8 +142,8 @@ if __name__ == "__main__":
         hp_dict = {
 
             "pretrain_task": pretrain_task,  # passed in by command line
-            "CLS_task": "Timbre_only",  # same_genre or nextseq
-            "num_CLS_labels": 2, # either 2 or 4, only 4 if we're decoding HC/HT/IC/IT
+            "CLS_task": "both",  # Timbre_only Condition_only or both
+            "num_CLS_labels": 4, # either 2 or 4, only 4 if we're decoding HC/HT/IC/IT
             "MSK_task": None, # no MSK task in finetuning for now
             "COOL_DIVIDEND": COOL_DIVIDEND,
             "NUM_TOKENS": NUM_TOKENS,
@@ -180,6 +180,9 @@ if __name__ == "__main__":
         if env=="discovery":
             pretrained_model_states = "/isi/music/auditoryimagery2/seanthesis/timedir/pretrain/trained_models/" + hp_dict["pretrain_task"] + "/states_" + pretrain_idx + "0.pt"
             data_path = "/isi/music/auditoryimagery2/seanthesis/timedir/finetune/datasets/"+hp_dict["data_dir"]+"/"
+
+        print("Hyperparameters: "+str(hp_dict))
+
 
         # set up logfile, FINETUNE_TIMBRE_LOG_PATH is defined in Constants.py
         today_dir = FINETUNE_TIMBRE_LOG_PATH + str(hp_dict["CLS_task"]) + "/" + str(today) + "/"
@@ -220,17 +223,14 @@ if __name__ == "__main__":
         train_y = []
         val_y = []
 
+        # detailed_label = (timbre, cond, subid, run_n, cycle_n, majorkey, stimnote, stimoctave, vividness, GoF)
         for detailed_label in train_y_detailed:
-            timbre = detailed_label[0]  # True/False is the first thing in the tuple
-            condition = detailed_label[1]
-            this_label = make_timbre_decode_label(timbre, condition, hp_dict["CLS_task"])
+            this_label = make_timbre_decode_label(detailed_label, hp_dict["CLS_task"])
 
             train_y.append(this_label)
 
         for detailed_val_label in val_y_detailed:
-            timbre = detailed_val_label[0]
-            condition = detailed_val_label[1]
-            this_label = make_timbre_decode_label(timbre, condition, hp_dict["CLS_task"])
+            this_label = make_timbre_decode_label(detailed_label, hp_dict["CLS_task"])
 
             val_y.append(this_label)
 
@@ -264,8 +264,7 @@ if __name__ == "__main__":
         val_loader = DataLoader(dataset=val_data, batch_size=hp_dict["BATCH_SIZE"], shuffle=False)
 
         # create the model
-        model = Transformer(num_CLS_labels=hp_dict["num_CLS_labels"], num_genres=10, src_pad_sequence=src_pad_sequence, max_length=12,
-                            voxel_dim=voxel_dim, ref_samples=None, mask_task=None, print_flag=0)
+        model = Transformer(num_CLS_labels=hp_dict["num_CLS_labels"], num_genres=10, src_pad_sequence=src_pad_sequence, max_length=max_length, voxel_dim=voxel_dim, ref_samples=None, mask_task=None, print_flag=0, heads = hp_dict["ATTENTION_HEADS"], num_layers=hp_dict["num_layers"], forward_expansion=hp_dict["forward_expansion"]).to(hp_dict["device"])
 
         # if we want to load pretrained weights:
         if pretrain_task != "fresh":
@@ -284,14 +283,14 @@ if __name__ == "__main__":
 
         criterion_CLS = nn.CrossEntropyLoss()
         # training_tensors is either everything or only the new layers for finetuning when freeze_pretrained is True
-        optimizer = optim.Adam(training_tensors, lr=LR_def, betas=(0.9, 0.999), weight_decay=0.0001)
+        optimizer = optim.Adam(training_tensors, lr=hp_dict["LEARNING_RATE"], betas=(0.9, 0.999), weight_decay=0.0001)
 
         ####################################################################################
         # FINALLY START TRAINING
         for e in range(0, hp_dict["EPOCHS"]):
             # 0'th index is the number of times the model was correct when the ground truth was 0, and when ground truth was 1
-            CLS_correct_train = [0, 0]
-            CLS_correct_val = [0, 0]
+            CLS_correct_train = [0]*hp_dict["num_CLS_labels"]
+            CLS_correct_val = [0]*hp_dict["num_CLS_labels"]
             CLS_neg_count_train = 0  # count the number of training samples where 0 was the correct answer
             CLS_neg_count_val = 0  # count the number of validation samples where 0 was the correct answer
 
@@ -322,6 +321,8 @@ if __name__ == "__main__":
                 # mask_indices set to finetune sends the CLS token to a different output layer than pretraining would
                 ypred_CLS_batch = model(X_batch, mask_indices="finetune")
                 ypred_CLS_batch = ypred_CLS_batch.float()
+                #print("ypred is "+str(ypred_CLS_batch))
+                #print("ytrue is "+str(ytrue_CLS_batch))
                 loss = criterion_CLS(ypred_CLS_batch, ytrue_CLS_batch)
                 acc = get_accuracy(ypred_CLS_batch, ytrue_CLS_batch, hp_dict["CLS_task"], log)
                 epoch_loss += loss.item()

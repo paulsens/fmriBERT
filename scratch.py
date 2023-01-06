@@ -1,5 +1,5 @@
-pooplist = None
+mylist = []
+copylist = mylist
+copylist.append("f")
 
-for x in pooplist:
-    print(x)
-print("done")
+print(mylist)

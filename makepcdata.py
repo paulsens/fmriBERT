@@ -113,7 +113,7 @@ def get_samplelabel(pair, sub_cycles, sub_allruns, CLS, SEP, run_idx, cycle_idx,
 
 # get a pair of indexes into a list of cycles, create the training sample and label
 # different from get_samplelabel, doesn't do pairs of subsequences, but rather just a single subsequence for timbre decoding
-def get_samplelabel_single(this_idx, sub_cycles, sub_allruns, CLS, run_idx, cycle_idx, cond_idx, timbre_idx):
+def get_samplelabel_single(this_idx, sub_cycles, sub_allruns, CLS, run_idx, cycle_idx, cond_idx, timbre_idx, majorkey_idx, stimnote_idx, stimoctave_idx, vividness_idx, GoF_idx, sample_length=5):
 
     cycle_info = sub_cycles[this_idx]
     subid = cycle_info[1]
@@ -122,11 +122,23 @@ def get_samplelabel_single(this_idx, sub_cycles, sub_allruns, CLS, run_idx, cycl
     cycle_n = cycle_info[cycle_idx]
     cond = cycle_info[cond_idx]
     timbre = cycle_info[timbre_idx]
+    majorkey = cycle_info[majorkey_idx]
+    stimnote = cycle_info[stimnote_idx]
+    stimoctave = cycle_info[stimoctave_idx]
+    vividness = cycle_info[vividness_idx]
+    GoF = cycle_info[GoF_idx]
 
 
     # dont forget that cycle_n and run_n are strings by default
-    start_TR = 6+(11*int(cycle_n))+(233*int(run_n))
-    end_TR = start_TR+5
+    if sample_length == 5:
+        start_TR = 6+(11*int(cycle_n))+(233*int(run_n))
+        end_TR = start_TR+5
+    elif sample_length == 10:
+        start_TR = 5+(11*int(cycle_n))+(233*int(run_n))
+        end_TR = start_TR+10
+    else:
+        print("Illegal sequence length, must be 5 or 10, quitting...")
+        quit(0)
 
 
     # finally create the training sample
@@ -135,7 +147,7 @@ def get_samplelabel_single(this_idx, sub_cycles, sub_allruns, CLS, run_idx, cycl
         sample.append(sub_allruns[i])
 
     # detailed labels facilitate analysis of results by keeping metadata about how we created this sample+label
-    detailed_label = (timbre, cond, subid, timbre, run_n, cycle_n)
+    detailed_label = (timbre, cond, subid, run_n, cycle_n, majorkey, stimnote, stimoctave, vividness, GoF)
     #print("detailed label is "+str(detailed_label))
 
 
@@ -216,7 +228,7 @@ data_path = pitchclass_preproc_path
 # save training_samples and training_labels
 time = date.today()
 seq_len = 5
-save_path = "/Volumes/External/pitchclass/finetuning/timbredecode/datasets/"+str(time)+"-"+str(seq_len)+"TR/"
+save_path = "/Volumes/External/pitchclass/finetuning/timbredecode/datasets/"+str(time)+"-"+str(seq_len)+"TR_XdecodeIH/"
 
 if not os.path.exists(save_path):
     os.mkdir(save_path)
@@ -237,8 +249,9 @@ if __name__ == "__main__":
     do_subjects = True
     do_all = True
     include_imagined = True
+    cross_decode = "IH" # HI, IH, or None (first letter is training, second is validation)
     # do we want to partition out some percentage of the samples or do we want to hold out runs?
-    holdout_runs = False
+    holdout_runs = True
     # do_subjects will create and pickle each subject separately
     # do_all assumes those subject pickled files already exist, so you can run both at once or do_subjects first then do_all
     if do_subjects:
@@ -315,6 +328,12 @@ if __name__ == "__main__":
             timbre_idx = info_idx["stim_timbre"] # either Trumpet or CLarinet
             cycle_idx = info_idx["cycle_n"]
             run_idx = info_idx["run_n"]
+            majorkey_idx = info_idx["majorkey"]
+            stimnote_idx = info_idx["stim_note"]
+            stimoctave_idx = info_idx["stim_octave"]
+            vividness_idx = info_idx["vividness"]
+            GoF_idx = info_idx["GoF"]
+
             HT_idxs = []
             HC_idxs = []
             IT_idxs = []
@@ -329,8 +348,61 @@ if __name__ == "__main__":
             IC_val_idxs = []
             # we use the above indices to check/retrieve information we want from the long tuples in sub_cycles
 
+            # if we're doing cross decoding, send either all heard samples to train lists and imagined to val lists or vice versa
+            if cross_decode is not None:
+                # if we train on Heard test on Imagined
+                if cross_decode == "HI":
+                    train_cond = "Heard"
+                    val_cond = "Imagined"
+
+                    train_C_idxs = HC_train_idxs
+                    train_T_idxs = HT_train_idxs
+
+                    val_C_idxs = IC_val_idxs
+                    val_T_idxs = IT_val_idxs
+
+                # train on Imagined test on Heard
+                elif cross_decode == "IH":
+                    train_cond = "Imagined"
+                    val_cond = "Heard"
+
+                    train_C_idxs = IC_train_idxs
+                    train_T_idxs = IT_train_idxs
+
+                    val_C_idxs = HC_val_idxs
+                    val_T_idxs = HT_val_idxs
+
+                for idx in range(0, len(sub_cycles)):
+                    #print("len of sub_cycles is "+str(len(sub_cycles)))
+                    # get information pertaining to this cycle
+                    cycle_info = sub_cycles[idx]
+                    cycle_n = cycle_info[cycle_idx]
+                    run_n = cycle_info[run_idx]
+                    cond = cycle_info[cond_idx]
+                    timbre = cycle_info[timbre_idx]
+                    majorkey = cycle_info[majorkey_idx]
+                    stimnote = cycle_info[stimnote_idx]
+                    stimoctave = cycle_info[stimoctave_idx]
+                    vividness = cycle_info[vividness_idx]
+                    GoF = cycle_info[GoF_idx]
+
+                    if cond == train_cond:
+                        if timbre=="Clarinet":
+                            train_C_idxs.append(idx)
+                        elif timbre=="Trumpet":
+                            train_T_idxs.append(idx)
+                    elif cond == val_cond:
+                        if timbre=="Clarinet":
+                            val_C_idxs.append(idx)
+                        elif timbre=="Trumpet":
+                            val_T_idxs.append(idx)
+
+                print("With cross decoding set to "+str(cross_decode)+", HC_train has "+str(len(HC_train_idxs))+
+                      ", HT_train has "+str(len(HT_train_idxs))+", IC_train has "+str(len(IC_train_idxs))+", IT_train has "+str(len(IT_train_idxs))+", HC_val has "+str(len(HC_val_idxs))+", HT_val has "+str(len(HT_val_idxs))+", IC_val has "+str(len(IC_val_idxs))+", and IT_val has "+str(len(IT_val_idxs)))
+
+
             # holdout_runs means hold out entire runs, this path instead holds out some percentage of cycles
-            if not holdout_runs:
+            elif not holdout_runs:
                 for idx in range(0, len(sub_cycles)):
                     #print("len of sub_cycles is "+str(len(sub_cycles)))
                     cycle_info = sub_cycles[idx]
@@ -338,6 +410,11 @@ if __name__ == "__main__":
                     run_n = cycle_info[run_idx]
                     cond = cycle_info[cond_idx]
                     timbre = cycle_info[timbre_idx]
+                    majorkey = cycle_info[majorkey_idx]
+                    stimnote = cycle_info[stimnote_idx]
+                    stimoctave = cycle_info[stimoctave_idx]
+                    vividness = cycle_info[vividness_idx]
+                    GoF = cycle_info[GoF_idx]
 
                     if(cond=="Heard"):
                         if(timbre=="Clarinet"):
@@ -375,6 +452,11 @@ if __name__ == "__main__":
                     run_n = cycle_info[run_idx]
                     cond = cycle_info[cond_idx]
                     timbre = cycle_info[timbre_idx]
+                    majorkey = cycle_info[majorkey_idx]
+                    stimnote = cycle_info[stimnote_idx]
+                    stimoctave = cycle_info[stimoctave_idx]
+                    vividness = cycle_info[vividness_idx]
+                    GoF = cycle_info[GoF_idx]
 
                     if(cond=="Heard"):
                         if(timbre=="Clarinet"):
@@ -441,6 +523,7 @@ if __name__ == "__main__":
                 print("Validation split True and false count for subject " + str(shortsubid) + " were " + str(valtruecount) + ", " + str(valfalsecount))
 
             # if not MAKE_PAIRS
+
             else:
                 # give it the old ocular patdown
                 print([HC_train_idxs, HT_train_idxs, IC_train_idxs, IT_train_idxs])
@@ -449,8 +532,12 @@ if __name__ == "__main__":
                 # now fill sub_X sub_y sub_val_X and sub_val_y
 
                 # create Heard Clarinet training data
+                # detailed label is (timbre, cond, subid, run_n, cycle_n, majorkey, stimnote, stimoctave, vividness, GoF)
+                # e.g ('Clarinet', 'Heard', 'sid001088', '0', '0', 'F', 'D', '5', 0, 3)
+
                 for HC_train_idx in HC_train_idxs:
-                    sample, label = get_samplelabel_single(HC_train_idx, sub_cycles, sub_allruns, CLS, run_idx, cycle_idx, cond_idx, timbre_idx)
+                    sample, label = get_samplelabel_single(HC_train_idx, sub_cycles, sub_allruns, CLS, run_idx, cycle_idx, cond_idx, timbre_idx, majorkey_idx, stimnote_idx, stimoctave_idx, vividness_idx, GoF_idx)
+
 
                     # update metadata
                     hc_count+=1
@@ -464,7 +551,7 @@ if __name__ == "__main__":
 
                 # create Heard Trumpet training data
                 for HT_train_idx in HT_train_idxs:
-                    sample, label = get_samplelabel_single(HT_train_idx, sub_cycles, sub_allruns, CLS, run_idx, cycle_idx, cond_idx, timbre_idx)
+                    sample, label = get_samplelabel_single(HT_train_idx, sub_cycles, sub_allruns, CLS, run_idx, cycle_idx, cond_idx, timbre_idx, majorkey_idx, stimnote_idx, stimoctave_idx, vividness_idx, GoF_idx)
 
                     # update metadata
                     ht_count+=1
@@ -478,7 +565,7 @@ if __name__ == "__main__":
 
                 # create Heard Clarinet validation data
                 for HC_val_idx in HC_val_idxs:
-                    sample, label = get_samplelabel_single(HC_val_idx, sub_cycles, sub_allruns, CLS, run_idx, cycle_idx, cond_idx, timbre_idx)
+                    sample, label = get_samplelabel_single(HC_val_idx, sub_cycles, sub_allruns, CLS, run_idx, cycle_idx, cond_idx, timbre_idx, majorkey_idx, stimnote_idx, stimoctave_idx, vividness_idx, GoF_idx)
 
                     # update metadata
                     val_hc_count+=1
@@ -492,7 +579,7 @@ if __name__ == "__main__":
 
                 # create Heard Trumpet validation data
                 for HT_val_idx in HT_val_idxs:
-                    sample, label = get_samplelabel_single(HT_val_idx, sub_cycles, sub_allruns, CLS, run_idx, cycle_idx, cond_idx, timbre_idx)
+                    sample, label = get_samplelabel_single(HT_val_idx, sub_cycles, sub_allruns, CLS, run_idx, cycle_idx, cond_idx, timbre_idx, majorkey_idx, stimnote_idx, stimoctave_idx, vividness_idx, GoF_idx)
 
                     # update metadata
                     val_ht_count+=1
@@ -510,7 +597,7 @@ if __name__ == "__main__":
                     # create Imagined Clarinet training data
                     for IC_train_idx in IC_train_idxs:
                         sample, label = get_samplelabel_single(IC_train_idx, sub_cycles, sub_allruns, CLS, run_idx,
-                                                               cycle_idx, cond_idx, timbre_idx)
+                                                               cycle_idx, cond_idx, timbre_idx, majorkey_idx, stimnote_idx, stimoctave_idx, vividness_idx, GoF_idx)
                         # update metadata
                         ic_count+=1
                         clarinet_count+=1
@@ -524,7 +611,7 @@ if __name__ == "__main__":
                     # create Imagined Trumpet training data
                     for IT_train_idx in IT_train_idxs:
                         sample, label = get_samplelabel_single(IT_train_idx, sub_cycles, sub_allruns, CLS, run_idx,
-                                                               cycle_idx, cond_idx, timbre_idx)
+                                                               cycle_idx, cond_idx, timbre_idx, majorkey_idx, stimnote_idx, stimoctave_idx, vividness_idx, GoF_idx)
                         # update metadata
                         it_count+=1
                         trumpet_count+=1
@@ -538,7 +625,7 @@ if __name__ == "__main__":
                     # create Imagined Clarinet validation data
                     for IC_val_idx in IC_val_idxs:
                         sample, label = get_samplelabel_single(IC_val_idx, sub_cycles, sub_allruns, CLS, run_idx,
-                                                               cycle_idx, cond_idx, timbre_idx)
+                                                               cycle_idx, cond_idx, timbre_idx, majorkey_idx, stimnote_idx, stimoctave_idx, vividness_idx, GoF_idx)
                         # update metadata
                         val_ic_count+=1
                         val_clarinet_count+=1
@@ -552,7 +639,7 @@ if __name__ == "__main__":
                     # create Imagined Trumpet validation data
                     for IT_val_idx in IT_val_idxs:
                         sample, label = get_samplelabel_single(IT_val_idx, sub_cycles, sub_allruns, CLS, run_idx,
-                                                               cycle_idx, cond_idx, timbre_idx)
+                                                               cycle_idx, cond_idx, timbre_idx, majorkey_idx, stimnote_idx, stimoctave_idx, vividness_idx, GoF_idx)
                         # update metadata
                         val_it_count+=1
                         val_trumpet_count+=1
