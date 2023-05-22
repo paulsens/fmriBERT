@@ -168,12 +168,12 @@ if __name__ == "__main__":
             "EPOCHS": EPOCHS,
             "LEARNING_RATE": LR,  # set at top of this file or by command line argument
             # Have to manually set the name of the folder whose training data you want to use, since there will be many
-            "data_dir": "2023-02-03-5TR_timbre_randomHO",  # yyyy-mm-dd-nTR
+            "data_dir": "2023-01-31-10TR_timbre_randomHO",  # yyyy-mm-dd-nTR
             "include imagined":True, # needs to be set per dataset, manually, for now
             # Manually set the hemisphere and iteration number of the dataset you want to use in that folder
             "hemisphere": "left",
             "count": str(thiscount),  # count and thiscount can be read as the index of the heldout run
-            "max_sample_length": 5,  # manually set max_seq_length used in data creation, does not include CLS token
+            "max_sample_length": 10,  # manually set max_seq_length used in data creation, does not include CLS token
 
             "within_subject": 1,
             # this doesn't really do anything now that inputs aren't paired, but it does serve as a reminder that the training data was created within subject (or not, potentially in the future)
@@ -333,7 +333,6 @@ if __name__ == "__main__":
                 ypred_CLS_batch = ypred_CLS_batch.float()
                 #print("ypred is "+str(ypred_CLS_batch))
                 #print("ytrue is "+str(ytrue_CLS_batch))
-
                 loss = criterion_CLS(ypred_CLS_batch, ytrue_CLS_batch)
                 acc = get_accuracy(ypred_CLS_batch, ytrue_CLS_batch, hp_dict["CLS_task"], log)
                 epoch_loss += loss.item()

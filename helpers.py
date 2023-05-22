@@ -364,7 +364,19 @@ def train_val_dataset(dataset, val_split=0.1):
     datasets["val"] = Subset(dataset, val_idx)
     return datasets
 #applies masks AND fills ytrue_multi_batch, the ground truth list for the non-binary task. the fact that it's named "multi" distinguishes it from "binary" and is legacy naming from when it was binary class vs multi class, but now it's just a stand-in for the mask task, which isn't necessarily classification at all
-def apply_masks(x, y, ref_samples, hp_dict, mask_variation, ytrue_multi_batch, sample_dists, ytrue_dist_multi1, ytrue_dist_multi2, batch_mask_indices, sample_mask_indices, mask_task, log, heldout=False):
+def apply_masks(x, y, ref_samples, hp_dict, mask_variation, ytrue_multi_batch, sample_dists, ytrue_dist_multi1, ytrue_dist_multi2, batch_mask_indices, sample_mask_indices, mask_task, log, heldout=False, main_task = "both"):
+ # RECALL THAT INFORMATION IS SMUGGLED IN WITH THE CLS TOKEN SO THE FIRST THREE DIMENSIONS OF X[0] NEED TO BE SET MANUALLY
+ # CURRENTLY THIS ONLY WORKS FOR BATCH SIZES OF 1, DO NOT RUN WITH BATCH SIZE GREATER THAN 1
+    if main_task == "CLS_only":
+        x[0][0] = 1
+        x[0][1] = 0
+        x[0][2] = 0
+        sample_mask_indices.append([-1,-1])
+        batch_mask_indices.append(sample_mask_indices)
+
+        ytrue_multi_batch.append(ytrue_dist_multi1.tolist())
+
+        return 0
 
     if (mask_variation):
         # TRAINING samples per subject
@@ -406,7 +418,7 @@ def apply_masks(x, y, ref_samples, hp_dict, mask_variation, ytrue_multi_batch, s
                 ref_idx=ref_idx_right
             ref_idx=int(ref_idx)
             r_action=random.randint(1,100)
-            print("r action is "+str(r_action))
+            #print("r action is "+str(r_action))
             #if r_action<=10 do nothing
             if 10<r_action<=20: #replace with another TR from the same subject, but not next to it in refsamples
                 r_choice=ref_idx
@@ -488,7 +500,7 @@ def apply_masks(x, y, ref_samples, hp_dict, mask_variation, ytrue_multi_batch, s
         #sample_dists.append(ytrue_dist_multi1.tolist())
         #ytrue_multi_batch.append(sample_dists)
         if(mask_task=="genre_decode"):
-            ytrue_multi_batch.append(ytrue_dist_multi1)
+            ytrue_multi_batch.append(ytrue_dist_multi1.tolist())
         elif(mask_task=="reconstruction"):
             #the label is just the TR image that we chose to mask
             ytrue_multi_batch.append(copy.deepcopy(x[mask_choice]))
@@ -657,12 +669,13 @@ def make_sub_cycle_dict(targets_dir, code_dict, sub_info_dict, sub_cycle_dict):
 def make_timbre_decode_label(detailed_label, task):
     timbre = detailed_label[0]  # True/False is the first thing in the tuple
     condition = detailed_label[1]
-    subid = detailed_label[2]
+    sub = detailed_label[2]
     majorkey = detailed_label[5]
     stimnote = detailed_label[6]
     stimoctave = detailed_label[7]
     vividness = detailed_label[8]
     GoF = detailed_label[9]
+    reversed = detailed_label[10]
 
     label = None
     # if we only want to decode timbre
@@ -703,7 +716,53 @@ def make_timbre_decode_label(detailed_label, task):
 
     # pitch class decoding
     elif task=="pitchclass":
-        quit(0)
+        scale_dict = {
+        "F":["F", "G", "A", "A#", "C", "D", "E"],
+        "E":["E", "F#", "G#", "A", "B", "C#", "D#"]
+        }
+        scale = scale_dict[majorkey]
+        scale_degree = scale.index(stimnote)
+        label = [0, 0, 0, 0, 0, 0, 0]
+        label[scale_degree]+=1 # put the probability mass on this scale degree
+
+    # raw pitch decoding
+    elif task=="rawpitch":
+        pitches = ["A", "A#", "B", "C", "C#", "D", "D#", "E", "F", "F#", "G", "G#"]
+        pitch_idx = pitches.index(stimnote)
+        label = [0]*len(pitches)
+        label[pitch_idx]+=1 # put the probability mass on this pitch
+
+    elif task=="key":
+        keys = ["E", "F"]
+        key_idx = keys.index(majorkey)
+        label = [0]*len(keys)
+        label[key_idx]+=1
+
+    elif task=="GoF":
+        label = [0, 0, 0, 0]
+        GoF_index = int(GoF) - 1 # GoF ranges from 1 to 4, the 0's (nonresponse) were not included in the dataset
+        label[GoF_index]+=1 # put the probability mass on the correct label
+
+    elif task=="vividness":
+        label = [0, 0, 0, 0]
+        viv_index = int(vividness) - 1 # vividness ranges from 1 to 4, the 0's (nonresponse) were not included in the dataset
+        label[viv_index]+=1 # put the probability mass on the correct label
+
+    elif task=="subid":
+        sublist = ["1088", "1125", "1401", "1410", "1419", "1427", "1541", "1571", "1581", "1660", "1661", "1664",
+                   "1665", "1668", "1672", "1678", "1680"]
+        label = [0]*len(sublist)
+        subnum = sub[-4:]
+        sub_idx = sublist.index(subnum)
+        label[sub_idx]+=1 # put probability mass on the correct label
+
+    elif task=="timedir":
+        label = [0,0]
+        label[reversed]+=1 # put probability mass on label 0 or 1
+
+
+
+
     else:
         print("Illegal task name, got "+str(task)+", quitting...")
         quit(0)

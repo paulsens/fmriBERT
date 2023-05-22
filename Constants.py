@@ -4,6 +4,8 @@ if env == "local":
     targets_dir = proj_dir+"targets/"
 elif env =="discovery":
     proj_dir = "/isi/music/auditoryimagery2/seanthesis/"
+    targets_dir = proj_dir+"targets/"
+
 
 pitch_dir = proj_dir + "pitchclass/"
 curr_sub = "sid001088"
@@ -74,12 +76,14 @@ elif env == "discovery":
 if env == "local":
     opengenre_preproc_path = "/Volumes/External/opengenre/preproc/"
     pitchclass_preproc_path = "/Volumes/External/pitchclass/preproc/"
-    timedir_datasets_path = "/Volumes/External/opengenre/preproc/training_data/timedir/"
+    timedir_datasets_path = "/Volumes/External/timedir/training_data/"
 
 elif env == "discovery":
     opengenre_preproc_path = "/isi/music/auditoryimagery2/seanthesis/opengenre/preproc/"
-    pitchclass_preproc_path = "/isi/music/auditoryimagery2/seanthesis/pitchclass/preproc/"
-    timedir_datasets_path = "/isi/music/auditoryimagery2/seanthesis/timedir/pretrain/datasets/"
+    pitchclass_preproc_path = "/isi/music/auditoryimagery2/seanthesis/pitchclass/pretraining/"
+    timedir_datasets_path = "/isi/music/auditoryimagery2/seanthesis/thesis/unpairedpretrain/timedir/training_data/"
+    pitchclass_finetune_path = "/isi/music/auditoryimagery2/seanthesis/pitchclass/finetuning/"
+
 
 
 if env == "local":
@@ -90,12 +94,12 @@ if env == "local":
 
 elif env == "discovery":
     PRETRAIN_LOG_PATH = "/isi/music/auditoryimagery2/seanthesis/pretrain_logs/"
-    PRETRAIN_TIMEDIR_LOG_PATH = "/isi/music/auditoryimagery2/seanthesis/timedir/pretrain/logs/"
-    PRETRAIN_TIMEDIR_MODEL_PATH = "/isi/music/auditoryimagery2/seanthesis/timedir/pretrain/trained_models/"
+    PRETRAIN_TIMEDIR_LOG_PATH = "/isi/music/auditoryimagery2/seanthesis/thesis/unpairedpretrain/logs/"
+    PRETRAIN_TIMEDIR_MODEL_PATH = "/isi/music/auditoryimagery2/seanthesis/thesis/unpairedpretrain/trained_models/"
     FINETUNE_TIMBRE_LOG_PATH = "/isi/music/auditoryimagery2/seanthesis/timedir/finetune/logs/"
+    THESIS_PATH = "/isi/music/auditoryimagery2/seanthesis/thesis/"
 
-NUM_TOKENS = 2 # CLS AND MSK, plus SEP if you're doing paired inputs, otherwise just 2
-COOL_DIVIDEND=420-NUM_TOKENS #sweetspot for voxel space dimension, will vary by ROI, but STG is 420 (after the 3 token dimensions are inserted)
+COOL_DIVIDEND=420 #sweetspot for voxel space dimension, will vary by ROI, but STG is 420 (after the 3 token dimensions are inserted)
 
 val_split = 0.1
 
@@ -106,8 +110,9 @@ if env == "local":
     ATTENTION_HEADS = 6
     EPOCHS = 1
 elif env == "discovery":
-    ATTENTION_HEADS = 6
-    EPOCHS = 3
+    ATTENTION_HEADS = None
+    EPOCHS = 2
+    FINETUNE_EPOCHS = 1
 
 #when the binary classi task is samegenre, and there are N samples from each genre,
 # then we could potentially have (N-1) yes pairs and another N-1 no pairs

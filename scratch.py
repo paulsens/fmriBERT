@@ -1,5 +1,2 @@
-mylist = []
-copylist = mylist
-copylist.append("f")
-
-print(mylist)
+mystr = "blah:f"
+print(mystr.split(":"))

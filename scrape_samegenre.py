@@ -154,5 +154,21 @@ for task in tasks:
     print("Acc averages by epoch: "+str(acc_avgs))
 
 
+# print stuff with folds separated so i can calculate cross-validation
+both=bothfold_averages
+fresh=freshfold_averages
+
+# For each fold, for each epoch, average over the 5 iterations
+for fold in range(0,12):
+    print("FOR FOLD {0}:".format(fold))
+    for epoch in range(0,5):
+        print(both[fold,epoch],end="\t")
+    print("\n")
+    for epoch in range(0,5):
+        print(fresh[fold,epoch],end="\t")
+
+    print("\n")
+
+
 
 

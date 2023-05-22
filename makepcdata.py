@@ -27,8 +27,19 @@ def partition_idxs(idx_list, val_size):
 # we want to pair up the indices to make training samples in a specific way
 # right now, each index in each list gets paired with an index from each of the four lists
 # with special care to not pair an index with itself
-def pair_idxs(given_lists, num_pairs=1):
+#repetitions is either 1, 2 or 4. For 1, each leftsample will be paired with either a positive or negative parter of the same condition. 2 means each leftsample will be paired with positive and negative partner with same condition. 4 means each leftsample will be paired with a positive and negative sample of both conditions. It seems that repetition of 4 can lead to overfitting.
+
+def pair_idxs(given_lists, num_pairs=1, repetitions=2):
     list_of_lists = []
+    # lists is order HC HT IC IT
+    HC_idx = 0
+    HC_list = given_lists[HC_idx]
+    HT_idx = 1
+    HT_list = given_lists[HT_idx]
+    IC_idx = 2
+    IC_list = given_lists[IC_idx]
+    IT_idx = 3
+    IT_list = given_lists[IT_idx]
 
     # if we're not including imagined data, two of the elements in given_lists will be None
     # this construction lets all the code keep working
@@ -37,23 +48,116 @@ def pair_idxs(given_lists, num_pairs=1):
             list_of_lists.append(given_list)
 
     idx_pairs = []
-    for idx_list in list_of_lists: # go through each list of indexes
-        for left_idx in idx_list: # each index in that list
-            # store the partners selected so far
-            partners_so_far = []
-            # how many partners from each condition are we finding for each left_idx? default is 1
-            for partner in range(0, num_pairs):
-                for partner_list in list_of_lists: #pair it with an index from each list
 
-                    if idx_list==partner_list: # if the two lists are the same, don't pair with yourself
-                        right_idx=left_idx
-                        while(right_idx==left_idx):
-                            right_idx=random.choice(partner_list)
+    if repetitions == 4:
+        for idx_list in list_of_lists: # go through each list of indexes
+            for left_idx in idx_list: # each index in that list
+                # store the partners selected so far
+                partners_so_far = []
+                # how many partners from each condition are we finding for each left_idx? default is 1
+                for partner in range(0, num_pairs):
+                    for partner_list in list_of_lists: #pair it with an index from each list
+
+                        if idx_list==partner_list: # if the two lists are the same, don't pair with yourself
+                            right_idx=left_idx
+                            while(right_idx==left_idx):
+                                right_idx=random.choice(partner_list)
+                                # don't pick the same one twice if we're doing more than one per condition
+                                if right_idx in partners_so_far:
+                                    right_idx = left_idx
+
+                        else: # otherwise, get a random selection without a care in the world
+                            right_idx = random.choice(partner_list)
+                            # don't pick the same one twice
+                            while right_idx in partners_so_far:
+                                right_idx = random.choice(partner_list)
+                            # at the moment, this does allow for a right_idx to appear more than once, and thus for some to never appear on the right side, but it's such a mess to prevent that for almost no real benefit
+                            # may fix that in the future
+
+                        partners_so_far.append(right_idx)
+                        pair = (left_idx, right_idx)
+                        idx_pairs.append(pair)
+
+    elif repetitions==2:
+        heard_lists = [HC_list, HT_list]
+        for idx_list in heard_lists:  # go through each list of indexes
+            for left_idx in idx_list:  # each index in that list
+                # store the partners selected so far
+                partners_so_far = []
+                # how many partners from each condition are we finding for each left_idx? default is 1
+                for partner in range(0, num_pairs):
+                    for partner_list in heard_lists:  # pair it with an index from each list
+
+                        if idx_list == partner_list:  # if the two lists are the same, don't pair with yourself
+                            right_idx = left_idx
+                            while (right_idx == left_idx):
+                                right_idx = random.choice(partner_list)
+                                # don't pick the same one twice if we're doing more than one per condition
+                                if right_idx in partners_so_far:
+                                    right_idx = left_idx
+
+                        else:  # otherwise, get a random selection without a care in the world
+                            right_idx = random.choice(partner_list)
+                            # don't pick the same one twice
+                            while right_idx in partners_so_far:
+                                right_idx = random.choice(partner_list)
+                            # at the moment, this does allow for a right_idx to appear more than once, and thus for some to never appear on the right side, but it's such a mess to prevent that for almost no real benefit
+                            # may fix that in the future
+
+                        partners_so_far.append(right_idx)
+                        pair = (left_idx, right_idx)
+                        idx_pairs.append(pair)
+
+        imagined_lists = [IC_list, IT_list]
+        for idx_list in imagined_lists:  # go through each list of indexes
+            for left_idx in idx_list:  # each index in that list
+                # store the partners selected so far
+                partners_so_far = []
+                # how many partners from each condition are we finding for each left_idx? default is 1
+                for partner in range(0, num_pairs):
+                    for partner_list in imagined_lists:  # pair it with an index from each list
+
+                        if idx_list == partner_list:  # if the two lists are the same, don't pair with yourself
+                            right_idx = left_idx
+                            while (right_idx == left_idx):
+                                right_idx = random.choice(partner_list)
+                                # don't pick the same one twice if we're doing more than one per condition
+                                if right_idx in partners_so_far:
+                                    right_idx = left_idx
+
+                        else:  # otherwise, get a random selection without a care in the world
+                            right_idx = random.choice(partner_list)
+                            # don't pick the same one twice
+                            while right_idx in partners_so_far:
+                                right_idx = random.choice(partner_list)
+                            # at the moment, this does allow for a right_idx to appear more than once, and thus for some to never appear on the right side, but it's such a mess to prevent that for almost no real benefit
+                            # may fix that in the future
+
+                        partners_so_far.append(right_idx)
+                        pair = (left_idx, right_idx)
+                        idx_pairs.append(pair)
+
+    elif repetitions==1:
+        heard_lists = [HC_list, HT_list]
+        for idx_list in heard_lists:  # go through each list of indexes
+            for left_idx in idx_list:  # each index in that list
+                # store the partners selected so far
+                partners_so_far = []
+
+                # how many partners from each condition are we finding for each left_idx? default is 1
+                for partner in range(0, num_pairs):
+                    posneg_choice = random.choice([0, 1])
+                    partner_list = heard_lists[posneg_choice]
+
+                    if idx_list == partner_list:  # if the two lists are the same, don't pair with yourself
+                        right_idx = left_idx
+                        while (right_idx == left_idx):
+                            right_idx = random.choice(partner_list)
                             # don't pick the same one twice if we're doing more than one per condition
                             if right_idx in partners_so_far:
                                 right_idx = left_idx
 
-                    else: # otherwise, get a random selection without a care in the world
+                    else:  # otherwise, get a random selection without a care in the world
                         right_idx = random.choice(partner_list)
                         # don't pick the same one twice
                         while right_idx in partners_so_far:
@@ -65,11 +169,45 @@ def pair_idxs(given_lists, num_pairs=1):
                     pair = (left_idx, right_idx)
                     idx_pairs.append(pair)
 
+        imagined_lists = [IC_list, IT_list]
+        for idx_list in imagined_lists:  # go through each list of indexes
+            for left_idx in idx_list:  # each index in that list
+                # store the partners selected so far
+                partners_so_far = []
+                # how many partners from each condition are we finding for each left_idx? default is 1
+                for partner in range(0, num_pairs):
+                    posneg_choice = random.choice([0,1])
+                    partner_list = imagined_lists[posneg_choice]
+
+                    if idx_list == partner_list:  # if the two lists are the same, don't pair with yourself
+                        right_idx = left_idx
+                        while (right_idx == left_idx):
+                            right_idx = random.choice(partner_list)
+                            # don't pick the same one twice if we're doing more than one per condition
+                            if right_idx in partners_so_far:
+                                right_idx = left_idx
+
+                    else:  # otherwise, get a random selection without a care in the world
+                        right_idx = random.choice(partner_list)
+                        # don't pick the same one twice
+                        while right_idx in partners_so_far:
+                            right_idx = random.choice(partner_list)
+                        # at the moment, this does allow for a right_idx to appear more than once, and thus for some to never appear on the right side, but it's such a mess to prevent that for almost no real benefit
+                        # may fix that in the future
+
+                    partners_so_far.append(right_idx)
+                    pair = (left_idx, right_idx)
+                    idx_pairs.append(pair)
+
+    else:
+        print("illegal value for repetitions, must 1 2 or 4, quitting...")
+        quit(0)
     #now every index in every list should have been paired with an index from each of the lists
+
     return idx_pairs
 
 # get a pair of indexes into a list of cycles, create the training sample and label
-def get_samplelabel(pair, sub_cycles, sub_allruns, CLS, SEP, run_idx, cycle_idx, cond_idx, timbre_idx):
+def get_samplelabel(pair, sub_cycles, sub_allruns, CLS, SEP, run_idx, cycle_idx, cond_idx, timbre_idx, seq_len):
     left_idx = pair[0]
     right_idx = pair[1]
     left_cycle_info = sub_cycles[left_idx]
@@ -85,20 +223,30 @@ def get_samplelabel(pair, sub_cycles, sub_allruns, CLS, SEP, run_idx, cycle_idx,
     right_cond = right_cycle_info[cond_idx]
     right_timbre = right_cycle_info[timbre_idx]
 
+    cyclesperrun = 21
+    TRsperrun = 233
+    # TRs are zero indexed, first stimulus is on TR 8 (line 9 in the text file)
+    # HRF peaks after 6.5 seconds or 3 TRs, so it probably makes the most sense to do STIM STIM REST PROBE REST since the probe is always the same timbre
+    startTR = 8
+    TRs_between_cycles = 11
+
     # dont forget that cycle_n and run_n are strings by default
-    left_start_TR = 6+(11*int(left_cycle_n))+(233*int(left_run_n))
-    left_end_TR = left_start_TR+5
-    right_start_TR = 6+(11*int(right_cycle_n))+(233*int(right_run_n))
-    right_end_TR = right_start_TR+5
+    left_start_TR = startTR+(TRs_between_cycles*int(left_cycle_n))+(TRsperrun*int(left_run_n))
+    left_end_TR = left_start_TR+seq_len
+    right_start_TR = startTR+(TRs_between_cycles*int(right_cycle_n))+(TRsperrun*int(right_run_n))
+    right_end_TR = right_start_TR+seq_len
 
     # finally create the training sample
-    sample=[CLS]
+    sample=[copy.deepcopy(CLS)]
+    #print("after appending CLS, sample looks like "+str(sample))
     for left_i in range(left_start_TR, left_end_TR):
         sample.append(sub_allruns[left_i])
+    #print("after appending leftsample, sample looks like "+str(sample))
 
-    sample.append(SEP)
+    sample.append(copy.deepcopy(SEP))
     for right_i in range(right_start_TR, right_end_TR):
         sample.append(sub_allruns[right_i])
+    #print("after appending rightsample, second half of sample looks like "+str(sample[6:]))
 
 
     if(left_timbre == right_timbre):
@@ -113,7 +261,9 @@ def get_samplelabel(pair, sub_cycles, sub_allruns, CLS, SEP, run_idx, cycle_idx,
 
 # get a pair of indexes into a list of cycles, create the training sample and label
 # different from get_samplelabel, doesn't do pairs of subsequences, but rather just a single subsequence for timbre decoding
-def get_samplelabel_single(this_idx, sub_cycles, sub_allruns, CLS, run_idx, cycle_idx, cond_idx, timbre_idx, majorkey_idx, stimnote_idx, stimoctave_idx, vividness_idx, GoF_idx, sample_length=5):
+def get_samplelabel_single(this_idx, sub_cycles, sub_allruns, CLS, run_idx, cycle_idx, cond_idx, timbre_idx, majorkey_idx, stimnote_idx, stimoctave_idx, vividness_idx, GoF_idx, sample_length=None, do_timedir=False):
+
+    global forward_count, reverse_count
 
     cycle_info = sub_cycles[this_idx]
     subid = cycle_info[1]
@@ -129,6 +279,9 @@ def get_samplelabel_single(this_idx, sub_cycles, sub_allruns, CLS, run_idx, cycl
     GoF = cycle_info[GoF_idx]
 
 
+
+
+
     # dont forget that cycle_n and run_n are strings by default
     if sample_length == 5:
         start_TR = 6+(11*int(cycle_n))+(233*int(run_n))
@@ -140,14 +293,34 @@ def get_samplelabel_single(this_idx, sub_cycles, sub_allruns, CLS, run_idx, cycl
         print("Illegal sequence length, must be 5 or 10, quitting...")
         quit(0)
 
+    # timedir stuff
+    choice = 0 # by default we're not reversing stuff
+    incr = 1 # for loop increments from left to right if it's not reversed
+    # are we reversing stuff?
+    if do_timedir:
+        choice = random.choice([0,1])
+        # 1 means we are reversing
+        if choice == 1:
+            temp = end_TR-1
+            end_TR = start_TR-1 # e.g 0 to 10 becomes 9 to -1, because the right bound is excluded from range()
+            start_TR = temp
+            incr = -1
+            reverse_count+=1
+
+        else:
+            forward_count+=1
+        # if choice==0, everything is already fine
 
     # finally create the training sample
     sample=[CLS]
-    for i in range(start_TR, end_TR):
-        sample.append(sub_allruns[i])
+    for i in range(start_TR, end_TR, incr):
+        if i>=len(sub_allruns):
+            sample.append(sub_allruns[len(sub_allruns)-1]) # we don't have enough rest state to pad the final sample from each run. One option is to drop this entirely, but that's 8*17=136 samples in the trash, which is a lot. This setup just repeats the last TR of each run as padding, either at the beginning (if reversed) or at the end of the sample. Something to think about improving.
+        else:
+            sample.append(sub_allruns[i])
 
     # detailed labels facilitate analysis of results by keeping metadata about how we created this sample+label
-    detailed_label = (timbre, cond, subid, run_n, cycle_n, majorkey, stimnote, stimoctave, vividness, GoF)
+    detailed_label = (timbre, cond, subid, run_n, cycle_n, majorkey, stimnote, stimoctave, vividness, GoF, choice)
     #print("detailed label is "+str(detailed_label))
 
 
@@ -161,13 +334,17 @@ def get_samplelabel_single(this_idx, sub_cycles, sub_allruns, CLS, run_idx, cycl
 
 ###### parameters and paths
 debug=1
-NUM_TOKENS = 2  # number of dimensions reserved by tokens, e.g CLS/MSK
+NUM_TOKENS = 3  # number of dimensions reserved by tokens, e.g CLS/MSK
 hemisphere="left"
 threshold="23"
 ROI="STG"
 n_runs=8 #all subjects had 8 runs in this dataset
 sublist = ["1088", "1125", "1401", "1410", "1419", "1427", "1541", "1571", "1581", "1660", "1661", "1664", "1665", "1668", "1672", "1678", "1680"]
-ROIfile_str=ROI+"_allruns"+str(hemisphere)+"_t"+str(threshold)+"_"+str(NUM_TOKENS)+"tokens.p"
+if NUM_TOKENS == 2:
+    ROIfile_str=ROI+"_allruns"+str(hemisphere)+"_t"+str(threshold)+"_"+str(NUM_TOKENS)+"tokens.p"
+else:
+    ROIfile_str=ROI+"_allruns"+str(hemisphere)+"_t"+str(threshold)+".p"
+
 
 ####### load important dictionaries, made by make_pitchclass_dicts.py
 # targets_dir is imported from Constants.py and depends on "env" variable (also defined in Constants.py)
@@ -223,12 +400,15 @@ info_idx = {
 #------ dictionaries are all loaded at this point
 
 
-#where is the training data going to be saved?
+#where is the original data loaded from?
 data_path = pitchclass_preproc_path
 # save training_samples and training_labels
 time = date.today()
 seq_len = 5
-save_path = "/Volumes/External/pitchclass/finetuning/timbredecode/datasets/"+str(time)+"-"+str(seq_len)+"TR_XdecodeIH/"
+forward_count=0
+reverse_count=0
+#save_path = "/Volumes/External/timedir/training_data/"+str(time)+"-"+str(seq_len)+"TR_audimg_HOruns_hasimagined/"
+save_path = "/Volumes/External/pitchclass/finetuning/sametimbre/datasets/"+str(time)+"-"+str(seq_len)+"TR_audimg_HOruns_hasimagined_1-1-pairs_repetition1/"
 
 if not os.path.exists(save_path):
     os.mkdir(save_path)
@@ -245,13 +425,17 @@ SEP = [0, 0, 1] + ([0] * (voxel_dim - 3))  # third dimension is reserved for sep
 
 # ------- at the moment we're only creating within-subject pairs, but the above global lists will hold samples from all subjects
 if __name__ == "__main__":
-    MAKE_PAIRS = False # are we pairing two sequences or is each input a single sequence
+    MAKE_PAIRS = True # are we pairing two sequences or is each input a single sequence
     do_subjects = True
     do_all = True
     include_imagined = True
-    cross_decode = "IH" # HI, IH, or None (first letter is training, second is validation)
+    check_vividness = False
+    do_timedir = False
+    check_GoF = False
+    cross_decode = None # HI, IH, or None (first letter is training, second is validation)
     # do we want to partition out some percentage of the samples or do we want to hold out runs?
     holdout_runs = True
+    holdout_subjects = None # either none or num:amount. num is how many subjects each fold should hold out, amount is how many of their possible validation runs should be held out, either half or all. For example, if we're cross decoding HI, only imagined runs may be held out for validation, of which there are 4, so either half or all of those might be held out. If we're, say, decoding timbre on both heard and imagined, there are 8 possible runs for each subject to hold out, so we might hold out 8 or 4. This abstraction of "half or all" allows us to assign the other parameters of the dataset without worrying about the exact explicit number of heldout runs.
     # do_subjects will create and pickle each subject separately
     # do_all assumes those subject pickled files already exist, so you can run both at once or do_subjects first then do_all
     if do_subjects:
@@ -384,7 +568,13 @@ if __name__ == "__main__":
                     stimnote = cycle_info[stimnote_idx]
                     stimoctave = cycle_info[stimoctave_idx]
                     vividness = cycle_info[vividness_idx]
+                    # if we care about vividness, skip any cycle where no response was given for vividness
+                    if check_vividness and vividness==0:
+                        continue
                     GoF = cycle_info[GoF_idx]
+                    # if we care about GoF, skip any cycle where no response was given for GoF
+                    if check_GoF and GoF==0:
+                        continue
 
                     if cond == train_cond:
                         if timbre=="Clarinet":
@@ -414,7 +604,12 @@ if __name__ == "__main__":
                     stimnote = cycle_info[stimnote_idx]
                     stimoctave = cycle_info[stimoctave_idx]
                     vividness = cycle_info[vividness_idx]
+                    if check_vividness and vividness == 0:
+                        continue
                     GoF = cycle_info[GoF_idx]
+                    # if we care about GoF, skip any cycle where no response was given for GoF
+                    if check_GoF and GoF == 0:
+                        continue
 
                     if(cond=="Heard"):
                         if(timbre=="Clarinet"):
@@ -433,8 +628,14 @@ if __name__ == "__main__":
                 HC_train_idxs, HC_val_idxs = partition_idxs(HC_idxs, 6)
                 HT_train_idxs, HT_val_idxs = partition_idxs(HT_idxs, 6)
                 if include_imagined:
-                    IC_train_idxs, IC_val_idxs = partition_idxs(IC_idxs, 6)
-                    IT_train_idxs, IT_val_idxs = partition_idxs(IT_idxs, 6)
+                    partition_size = 6
+                    if len(IC_idxs) < partition_size:
+                        partition_size = 1
+                    IC_train_idxs, IC_val_idxs = partition_idxs(IC_idxs, partition_size)
+                    partition_size = 6
+                    if len(IT_idxs) < partition_size:
+                        partition_size = 1
+                    IT_train_idxs, IT_val_idxs = partition_idxs(IT_idxs, partition_size)
                 else:
                     IC_train_idxs, IC_val_idxs = None, None
                     IT_train_idxs, IT_val_idxs = None, None
@@ -456,7 +657,12 @@ if __name__ == "__main__":
                     stimnote = cycle_info[stimnote_idx]
                     stimoctave = cycle_info[stimoctave_idx]
                     vividness = cycle_info[vividness_idx]
+                    if check_vividness and vividness == 0:
+                        continue
                     GoF = cycle_info[GoF_idx]
+                    # if we care about GoF, skip any cycle where no response was given for GoF
+                    if check_GoF and GoF == 0:
+                        continue
 
                     if(cond=="Heard"):
                         if(timbre=="Clarinet"):
@@ -494,13 +700,13 @@ if __name__ == "__main__":
             # break
             # finally create training data for this subject
             if MAKE_PAIRS:
-                trainidx_pairs = pair_idxs([HC_train_idxs, HT_train_idxs, IC_train_idxs, IT_train_idxs], num_pairs=4)
-                validx_pairs = pair_idxs([HC_val_idxs, HT_val_idxs, IC_val_idxs, IT_val_idxs], num_pairs=1)
+                trainidx_pairs = pair_idxs([HC_train_idxs, HT_train_idxs, IC_train_idxs, IT_train_idxs], num_pairs=1, repetitions=1)
+                validx_pairs = pair_idxs([HC_val_idxs, HT_val_idxs, IC_val_idxs, IT_val_idxs], num_pairs=1, repetitions=1)
                 for pair in trainidx_pairs:
                     # pair is two indexes into sub_cycles
                     # function returns a sample like [CLS token token token token SEP token ... ]
                     # and a label either True or False, for right now
-                    sample, label = get_samplelabel(pair, sub_cycles, sub_allruns, CLS, SEP, run_idx, cycle_idx, cond_idx, timbre_idx)
+                    sample, label = get_samplelabel(pair, sub_cycles, sub_allruns, CLS, SEP, run_idx, cycle_idx, cond_idx, timbre_idx, seq_len)
                     if(label[0]==True):
                         truecount+=1
                     else:
@@ -512,7 +718,7 @@ if __name__ == "__main__":
 
 
                 for valpair in validx_pairs:
-                    valsample, vallabel = get_samplelabel(valpair, sub_cycles, sub_allruns, CLS, SEP, run_idx, cycle_idx, cond_idx, timbre_idx)
+                    valsample, vallabel = get_samplelabel(valpair, sub_cycles, sub_allruns, CLS, SEP, run_idx, cycle_idx, cond_idx, timbre_idx, seq_len)
                     if(vallabel[0]==True):
                         valtruecount+=1
                     else:
@@ -536,7 +742,7 @@ if __name__ == "__main__":
                 # e.g ('Clarinet', 'Heard', 'sid001088', '0', '0', 'F', 'D', '5', 0, 3)
 
                 for HC_train_idx in HC_train_idxs:
-                    sample, label = get_samplelabel_single(HC_train_idx, sub_cycles, sub_allruns, CLS, run_idx, cycle_idx, cond_idx, timbre_idx, majorkey_idx, stimnote_idx, stimoctave_idx, vividness_idx, GoF_idx)
+                    sample, label = get_samplelabel_single(HC_train_idx, sub_cycles, sub_allruns, CLS, run_idx, cycle_idx, cond_idx, timbre_idx, majorkey_idx, stimnote_idx, stimoctave_idx, vividness_idx, GoF_idx, seq_len, do_timedir)
 
 
                     # update metadata
@@ -551,7 +757,7 @@ if __name__ == "__main__":
 
                 # create Heard Trumpet training data
                 for HT_train_idx in HT_train_idxs:
-                    sample, label = get_samplelabel_single(HT_train_idx, sub_cycles, sub_allruns, CLS, run_idx, cycle_idx, cond_idx, timbre_idx, majorkey_idx, stimnote_idx, stimoctave_idx, vividness_idx, GoF_idx)
+                    sample, label = get_samplelabel_single(HT_train_idx, sub_cycles, sub_allruns, CLS, run_idx, cycle_idx, cond_idx, timbre_idx, majorkey_idx, stimnote_idx, stimoctave_idx, vividness_idx, GoF_idx, seq_len, do_timedir)
 
                     # update metadata
                     ht_count+=1
@@ -565,7 +771,7 @@ if __name__ == "__main__":
 
                 # create Heard Clarinet validation data
                 for HC_val_idx in HC_val_idxs:
-                    sample, label = get_samplelabel_single(HC_val_idx, sub_cycles, sub_allruns, CLS, run_idx, cycle_idx, cond_idx, timbre_idx, majorkey_idx, stimnote_idx, stimoctave_idx, vividness_idx, GoF_idx)
+                    sample, label = get_samplelabel_single(HC_val_idx, sub_cycles, sub_allruns, CLS, run_idx, cycle_idx, cond_idx, timbre_idx, majorkey_idx, stimnote_idx, stimoctave_idx, vividness_idx, GoF_idx, seq_len, do_timedir)
 
                     # update metadata
                     val_hc_count+=1
@@ -579,7 +785,7 @@ if __name__ == "__main__":
 
                 # create Heard Trumpet validation data
                 for HT_val_idx in HT_val_idxs:
-                    sample, label = get_samplelabel_single(HT_val_idx, sub_cycles, sub_allruns, CLS, run_idx, cycle_idx, cond_idx, timbre_idx, majorkey_idx, stimnote_idx, stimoctave_idx, vividness_idx, GoF_idx)
+                    sample, label = get_samplelabel_single(HT_val_idx, sub_cycles, sub_allruns, CLS, run_idx, cycle_idx, cond_idx, timbre_idx, majorkey_idx, stimnote_idx, stimoctave_idx, vividness_idx, GoF_idx, seq_len, do_timedir)
 
                     # update metadata
                     val_ht_count+=1
@@ -597,7 +803,7 @@ if __name__ == "__main__":
                     # create Imagined Clarinet training data
                     for IC_train_idx in IC_train_idxs:
                         sample, label = get_samplelabel_single(IC_train_idx, sub_cycles, sub_allruns, CLS, run_idx,
-                                                               cycle_idx, cond_idx, timbre_idx, majorkey_idx, stimnote_idx, stimoctave_idx, vividness_idx, GoF_idx)
+                                                               cycle_idx, cond_idx, timbre_idx, majorkey_idx, stimnote_idx, stimoctave_idx, vividness_idx, GoF_idx, seq_len, do_timedir)
                         # update metadata
                         ic_count+=1
                         clarinet_count+=1
@@ -611,7 +817,7 @@ if __name__ == "__main__":
                     # create Imagined Trumpet training data
                     for IT_train_idx in IT_train_idxs:
                         sample, label = get_samplelabel_single(IT_train_idx, sub_cycles, sub_allruns, CLS, run_idx,
-                                                               cycle_idx, cond_idx, timbre_idx, majorkey_idx, stimnote_idx, stimoctave_idx, vividness_idx, GoF_idx)
+                                                               cycle_idx, cond_idx, timbre_idx, majorkey_idx, stimnote_idx, stimoctave_idx, vividness_idx, GoF_idx, seq_len, do_timedir)
                         # update metadata
                         it_count+=1
                         trumpet_count+=1
@@ -625,7 +831,7 @@ if __name__ == "__main__":
                     # create Imagined Clarinet validation data
                     for IC_val_idx in IC_val_idxs:
                         sample, label = get_samplelabel_single(IC_val_idx, sub_cycles, sub_allruns, CLS, run_idx,
-                                                               cycle_idx, cond_idx, timbre_idx, majorkey_idx, stimnote_idx, stimoctave_idx, vividness_idx, GoF_idx)
+                                                               cycle_idx, cond_idx, timbre_idx, majorkey_idx, stimnote_idx, stimoctave_idx, vividness_idx, GoF_idx, seq_len, do_timedir)
                         # update metadata
                         val_ic_count+=1
                         val_clarinet_count+=1
@@ -634,12 +840,12 @@ if __name__ == "__main__":
                         sub_val_X.append(sample)
                         # print("appended "+str(sample)+" to sub_X")
                         sub_val_y.append(label)
-                        # print("appended "+str(label)+" to sub_y")
+                        print("appended "+str(label)+" to sub_y")
 
                     # create Imagined Trumpet validation data
                     for IT_val_idx in IT_val_idxs:
                         sample, label = get_samplelabel_single(IT_val_idx, sub_cycles, sub_allruns, CLS, run_idx,
-                                                               cycle_idx, cond_idx, timbre_idx, majorkey_idx, stimnote_idx, stimoctave_idx, vividness_idx, GoF_idx)
+                                                               cycle_idx, cond_idx, timbre_idx, majorkey_idx, stimnote_idx, stimoctave_idx, vividness_idx, GoF_idx, seq_len, do_timedir)
                         # update metadata
                         val_it_count+=1
                         val_trumpet_count+=1
@@ -671,46 +877,103 @@ if __name__ == "__main__":
             print("Saved training data for subject "+shortsubid)
 
     if do_all:
-        all_X = []
-        all_y = []
-        all_val_X = []
-        all_val_y = []
-        # load each subjects's contributions
-        for sub in sublist:
-            shortsubid = "sid00"+sub
+        if holdout_subjects == None:
+            num_folds = 1
+        else:
+            # if we're holding out subjects or only runs from some amount of subjects
+            # holout_subjects is defined up at the top of __main__
+            hold_str = holdout_subjects.split(":") # something like 2:all
+            held_per_fold = int(hold_str[0]) # number of subjects to be held out in each split
+            runs_held = hold_str[1] # either half or all
 
-            sub_save_path = save_path+shortsubid+"_"
-            with open(sub_save_path+"X.p", "rb") as temp_fp:
-                sub_X = pickle.load(temp_fp)
-            with open(sub_save_path+"y.p", "rb") as temp_fp:
-                sub_y = pickle.load(temp_fp)
-            with open(sub_save_path+"val_X.p", "rb") as temp_fp:
-                sub_val_X = pickle.load(temp_fp)
-            with open(sub_save_path+"val_y.p", "rb") as temp_fp:
-                sub_val_y = pickle.load(temp_fp)
+            shuffled_subs = sublist.copy()
+            random.shuffle(shuffled_subs)
+            num_folds = len(shuffled_subs)//held_per_fold # integer division, some subject may not be held out at all
 
-            # append this subject's training data to the global training data
-            all_X.extend(sub_X)
-            all_y.extend(sub_y)
-            all_val_X.extend(sub_val_X)
-            all_val_y.extend(sub_val_y)
-            print("extended "+str(shortsubid))
+        for fold in range(0, num_folds):
+            all_X = []
+            all_y = []
+            all_val_X = []
+            all_val_y = []
+            # load each subjects's contributions
 
-        print("all_X has length"+str(len(all_X)))
-        print("all_y has length"+str(len(all_y)))
-        print("all_val_X has length"+str(len(all_val_X)))
-        print("all_val_y has length"+str(len(all_val_y)))
+            held_subs = []
+            if holdout_subjects is not None:
+                held_idx = fold*held_per_fold
+                print("Held index for fold {0}: {1}".format(fold, held_idx))
+                for k in range(0, held_per_fold):
+                    held_subs.append(shuffled_subs[held_idx+k])
+                print("For fold {0}, holding out {1}".format(fold, held_subs))
 
-        all_save_path = save_path + "all_"
-        with open(all_save_path + "X.p", "wb") as temp_fp:
-            pickle.dump(all_X, temp_fp)
-        with open(all_save_path + "y.p", "wb") as temp_fp:
-            pickle.dump(all_y, temp_fp)
-        with open(all_save_path + "val_X.p", "wb") as temp_fp:
-            pickle.dump(all_val_X, temp_fp)
-        with open(all_save_path + "val_y.p", "wb") as temp_fp:
-            pickle.dump(all_val_y, temp_fp)
-        print("Saved concatenated training data for all subjects")
+
+            for sub in sublist:
+                shortsubid = "sid00"+sub
+
+                sub_save_path = save_path+shortsubid+"_"
+                with open(sub_save_path+"X.p", "rb") as temp_fp:
+                    sub_X = pickle.load(temp_fp)
+                with open(sub_save_path+"y.p", "rb") as temp_fp:
+                    sub_y = pickle.load(temp_fp)
+                with open(sub_save_path+"val_X.p", "rb") as temp_fp:
+                    sub_val_X = pickle.load(temp_fp)
+                with open(sub_save_path+"val_y.p", "rb") as temp_fp:
+                    sub_val_y = pickle.load(temp_fp)
+
+                # append this subject's training data to the global training data
+                # if held_subs is empty, we're not holding out subjects and the way it was saved is correct vis a vis training/validation
+                if len(held_subs)==0:
+                    all_X.extend(sub_X)
+                    all_y.extend(sub_y)
+                    all_val_X.extend(sub_val_X)
+                    all_val_y.extend(sub_val_y)
+                    print("extended "+str(shortsubid))
+                else:
+                    if sub in held_subs: # put stuff in validation
+                        if runs_held == "all":
+                            all_val_X.extend(sub_X)
+                            all_val_y.extend(sub_y)
+                            all_val_X.extend(sub_val_X)
+                            all_val_y.extend(sub_val_y)
+                            print("extended " + str(shortsubid))
+
+                        elif runs_held == "half":
+                            all_X.extend(sub_X)
+                            all_y.extend(sub_y)
+                            all_val_X.extend(sub_val_X)
+                            all_val_y.extend(sub_val_y)
+                            print("extended " + str(shortsubid))
+                        else:
+                            print("runs held was illegal value, got "+str(runs_held)+", quitting...")
+                            quit(0)
+
+                    else: # not held out, put everything in training
+                        all_X.extend(sub_X)
+                        all_y.extend(sub_y)
+                        all_X.extend(sub_val_X)
+                        all_y.extend(sub_val_y)
+                        print("extended " + str(shortsubid))
+
+            print("all_X has length"+str(len(all_X)))
+            print("all_y has length"+str(len(all_y)))
+            print("all_val_X has length"+str(len(all_val_X)))
+            print("all_val_y has length"+str(len(all_val_y)))
+
+            all_save_path = save_path + "all_"
+            fold_str = ""
+            if(num_folds > 1):
+                print("Fold "+str(fold)+":")
+                fold_str = "_fold{0}".format(fold)
+            with open(all_save_path + "X"+fold_str+".p", "wb") as temp_fp:
+                pickle.dump(all_X, temp_fp)
+            with open(all_save_path + "y"+fold_str+".p", "wb") as temp_fp:
+                pickle.dump(all_y, temp_fp)
+            with open(all_save_path + "val_X"+fold_str+".p", "wb") as temp_fp:
+                pickle.dump(all_val_X, temp_fp)
+            with open(all_save_path + "val_y"+fold_str+".p", "wb") as temp_fp:
+                pickle.dump(all_val_y, temp_fp)
+            print("forward count is "+str(forward_count))
+            print("reverse count is "+str(reverse_count))
+            print("Saved concatenated training data for all subjects")
 
 
 

@@ -131,6 +131,12 @@ if __name__ == "__main__":
         else:
             attn_heads = ATTENTION_HEADS  # defined in Constants.py
 
+        if "-seq_len" in opts:
+            idx = opts.index("-seq_len")
+            seq_len = int(args[idx])
+        else:
+            seq_len = 5  # defined in Constants.py
+
         if "-forward_expansion" in opts:
             idx = opts.index("-forward_expansion")
             f_exp = int(args[idx])
@@ -143,6 +149,44 @@ if __name__ == "__main__":
         else:
             n_layers = 2  # arbitrary default value
 
+        if "-pretrain_dataset" in opts:
+            idx = opts.index("-pretrain_dataset")
+            pretrain_dataset = str(args[idx]) # either genre or audimg or fresh
+        else:
+            pretrain_dataset = "fresh"  # default
+
+        if "-pretrain_task" in opts:
+            idx = opts.index("-pretrain_task")
+            pretrain_task = str(args[idx]) # either genre or audimg or fresh
+        else:
+            pretrain_task = "fresh"  # default
+
+
+        if "-decode_dataset" in opts:
+            idx = opts.index("-decode_dataset")
+            decode_dataset = str(args[idx])  # either genre or audimg or fresh
+        else:
+            decode_dataset = "genre"  # default
+        if decode_dataset=="genre":
+            num_subjects = 5
+            datadir=None # to do
+        elif decode_dataset=="audimg":
+            num_subjects = 17
+            datadir = None # to do
+        else:
+            print("Decode dataset needs to either be genre or audimg, got "+str(decode_dataset)+", quitting...")
+            quit(0)
+
+        if "-decode_task" in opts:
+            idx = opts.index("-decode_task")
+            decode_task = str(args[idx])  # either genre or audimg or fresh
+        else:
+            decode_task = "genredecode"  # default
+        if decode_task=="genredecode":
+            num_CLS_labels = 10
+        else:
+            num_CLS_labels = 2
+
         today = datetime.date.today()
         now = datetime.datetime.now()
         ##############################  SET PARAMETERS  ##############################
@@ -150,14 +194,17 @@ if __name__ == "__main__":
         # dictionary of hyperparameters, eventually should probably come from command line
         hp_dict = {
 
+            "pretrain_dataset": pretrain_dataset,
             "pretrain_task": pretrain_task,  # passed in by command line
-            "CLS_task": "timedir",  # Timbre_only Condition_only or both
-            "num_CLS_labels": 2, # either 2 or 4, only 4 if we're decoding HC/HT/IC/IT
+            "decode_dataset": decode_dataset,
+            "decode_task": decode_task,
+            "CLS_task": decode_task,  # Timbre_only Condition_only or both
+            "num_CLS_labels": num_CLS_labels, # either 2 or 4, only 4 if we're decoding HC/HT/IC/IT
             "MSK_task": None, # no MSK task in finetuning for now
             "fold":fold,
             "fold_str":fold_str,
             "COOL_DIVIDEND": COOL_DIVIDEND,
-            "NUM_TOKENS": NUM_TOKENS,
+            "NUM_TOKENS": 2,
             "ATTENTION_HEADS": attn_heads,
             "forward_expansion": f_exp,
             "num_layers": n_layers,
@@ -168,16 +215,15 @@ if __name__ == "__main__":
             "EPOCHS": EPOCHS,
             "LEARNING_RATE": LR,  # set at top of this file or by command line argument
             # Have to manually set the name of the folder whose training data you want to use, since there will be many
-            "data_dir": "2023-02-03-5TR_timbre_randomHO",  # yyyy-mm-dd-nTR
-            "include imagined":True, # needs to be set per dataset, manually, for now
+            "data_dir": datadir,  # yyyy-mm-dd-nTR
             # Manually set the hemisphere and iteration number of the dataset you want to use in that folder
             "hemisphere": "left",
             "count": str(thiscount),  # count and thiscount can be read as the index of the heldout run
-            "max_sample_length": 5,  # manually set max_seq_length used in data creation, does not include CLS token
+            "max_sample_length": 10,  # manually set max_seq_length used in data creation, does not include CLS token
 
             "within_subject": 1,
             # this doesn't really do anything now that inputs aren't paired, but it does serve as a reminder that the training data was created within subject (or not, potentially in the future)
-            "num_subjects": 17,  # nakai et al's music genre dataset had 5 subjects
+            "num_subjects": num_subjects,  # nakai et al's music genre dataset had 5 subjects
             "heldout_run": thiscount,
             "held_start": held_start,  # calculated above when handling command line args
             "held_range": held_range
@@ -196,7 +242,7 @@ if __name__ == "__main__":
 
 
         # set up logfile, FINETUNE_TIMBRE_LOG_PATH is defined in Constants.py
-        today_dir = PRETRAIN_TIMEDIR_LOG_PATH + str(hp_dict["CLS_task"]) + "/" + str(today) + "/"
+        today_dir = THESIS_PATH+"unpaireddecode/logs/"+str(today)+"/"
         if not (os.path.exists(today_dir)):
             os.mkdir(today_dir)
         if (thiscount != None):
@@ -274,7 +320,7 @@ if __name__ == "__main__":
         val_loader = DataLoader(dataset=val_data, batch_size=hp_dict["BATCH_SIZE"], shuffle=False)
 
         # create the model
-        model = Transformer(num_CLS_labels=hp_dict["num_CLS_labels"], num_genres=10, src_pad_sequence=src_pad_sequence, max_length=max_length, voxel_dim=voxel_dim, ref_samples=None, mask_task=None, print_flag=0, heads = hp_dict["ATTENTION_HEADS"], num_layers=hp_dict["num_layers"], forward_expansion=hp_dict["forward_expansion"]).to(hp_dict["device"])
+        model = Transformer(num_CLS_labels=hp_dict["num_CLS_labels"], num_genres=10, src_pad_sequence=src_pad_sequence, max_length=max_length, voxel_dim=voxel_dim, ref_samples=None, mask_task=hp_dict["MSK_task"], print_flag=0, heads = hp_dict["ATTENTION_HEADS"], num_layers=hp_dict["num_layers"], forward_expansion=hp_dict["forward_expansion"]).to(hp_dict["device"])
 
         # if we want to load pretrained weights:
         if pretrain_task != "fresh":
@@ -409,3 +455,16 @@ if __name__ == "__main__":
             print("number of samples: " + str(len(val_loader)))
         # end training
 
+        if save_model: # save model is set by command line argument
+            modelcount=0
+            model_path = "/isi/music/auditoryimagery2/seanthesis/thesis/unpaireddecode/"+str(hp_dict["task"])+"/states_"+str(fold_str)+str(modelcount)+".pt"
+            while(os.path.exists(model_path)):
+                modelcount+=1
+                model_path = "/isi/music/auditoryimagery2/seanthesis/thesis/unpaireddecode/"+str(hp_dict["task"])+"/states_"+str(fold_str)+str(modelcount)+".pt"
+
+            torch.save(model.state_dict(),model_path)
+            model_path = "/isi/music/auditoryimagery2/seanthesis/thesis/unpaireddecode/"+str(hp_dict["task"])+"/full_" + str(thiscount) + str(
+                modelcount) + ".pt"
+            torch.save(model,model_path)
+
+    log.close()

@@ -273,17 +273,6 @@ if __name__=="__main__":
                 val_acc += acc.item()
 
         # end epoch
-        # print training stats for this epoch
-        print("Epoch bin training stats:")
-        print(f'Epoch {e+0:03}: | Loss: {epoch_loss/len(train_loader):.5f} | Acc: {epoch_acc/len(train_loader):.3f}')
-        print("correct counts for this epoch: "+str(bin_correct_train))
-        print("bin neg sample count: "+str(bin_neg_count_train))
-        print("number of samples: "+str(len(train_loader)))
-        print("\n")
-        print("Epoch bin val stats:")
-        print(f'Epoch {e+0:03}: | Loss: {val_loss/len(val_loader):.5f} | Acc: {val_acc/len(val_loader):.3f}')
-        print("correct counts for this epoch's val split: " + str(bin_correct_val))
-        print("bin neg sample count: " + str(bin_neg_count_val))
-        print("number of samples: " + str(len(val_loader)))
+
 
 

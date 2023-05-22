@@ -1,0 +1,215 @@
+0a1,2
+> # started with a copy of voxel_transformer then updated for finetuning tasks
+> # currently set up for same-timbre binary-task only
+17,36c19,28
+<         self.values_heads = nn.ModuleList(
+<             [nn.Linear(self.head_dim, self.head_dim, bias=True)
+<              for _ in range(self.heads)]
+<         )
+<         self.keys_heads = nn.ModuleList(
+<             [nn.Linear(self.head_dim, self.head_dim, bias=True)
+<              for _ in range(self.heads)]
+<         )
+<         self.queries_heads = nn.ModuleList(
+<             [nn.Linear(self.head_dim, self.head_dim, bias=True)
+<              for _ in range(self.heads)]
+<         )
+< 
+<         #
+<         # #Multi head attention maps
+<         # for i in range(0, self.heads):
+<         #
+<         #     self.values_heads.append(nn.Linear(self.head_dim, self.head_dim, bias=True))
+<         #     self.keys_heads.append(nn.Linear(self.head_dim, self.head_dim, bias=True))
+<         #     self.queries_heads.append(nn.Linear(self.head_dim, self.head_dim, bias=True))
+---
+>         self.values_heads = []
+>         self.keys_heads = []
+>         self.queries_heads = []
+> 
+>         #Multi head attention maps
+>         for i in range(0, self.heads):
+> 
+>             self.values_heads.append(nn.Linear(self.head_dim, self.head_dim, bias=True))
+>             self.keys_heads.append(nn.Linear(self.head_dim, self.head_dim, bias=True))
+>             self.queries_heads.append(nn.Linear(self.head_dim, self.head_dim, bias=True))
+53,59d44
+<         #print(self.values_heads[0].weight)
+<         #if True:
+<         if sa_print_flag:
+<             print("new values is "+str(new_values))
+<             print("new keys is "+str(new_keys))
+<             print("new queries is "+str(new_queries))
+<         #Messy looking loop but wouldn't work with python-ese attempts
+61,74c46,59
+<         for batch_idx in range(0,N):
+<             for element in range(0,value_len):
+<                 for i in range(0, self.heads):
+<                     new_values[batch_idx][element][i] = self.values_heads[i](values[batch_idx][element][i])
+<             #print("after filling, new values is "+str(new_values))
+<             for element in range(0, key_len):
+<                 for i in range(0, self.heads):
+<                     new_keys[batch_idx][element][i] = self.keys_heads[i](keys[batch_idx][element][i])
+<             #print("after filling, new keys is "+str(new_keys))
+< 
+<             for element in range(0, query_len):
+<                 for i in range(0, self.heads):
+<                     new_queries[batch_idx][element][i] = self.queries_heads[i](queries[batch_idx][element][i])
+<             #print("after filling, new queries is "+str(new_queries))
+---
+>         #Messy looking loop but wouldn't work with python-ese attempts
+>         if True:
+>             for batch_idx in range(0,N):
+>                 for element in range(0,value_len):
+>                     for i in range(0, self.heads):
+>                         new_values[batch_idx][element][i] = self.values_heads[i](values[batch_idx][element][i])
+> 
+>                 for element in range(0, key_len):
+>                     for i in range(0, self.heads):
+>                         new_keys[batch_idx][element][i] = self.keys_heads[i](keys[batch_idx][element][i].clone())
+> 
+>                 for element in range(0, query_len):
+>                     for i in range(0, self.heads):
+>                         new_queries[batch_idx][element][i] = self.queries_heads[i](queries[batch_idx][element][i])
+78d62
+<         #if True:
+80,81c64,65
+<             print("new queries is "+str(new_queries)+" and has shape "+str(new_queries.shape))
+<             print("new keys is "+str(new_keys)+" and has shape "+str(new_keys.shape))
+---
+>             #print("new queries is "+str(new_queries)+" and has shape "+str(new_queries.shape))
+>             #print("new keys is "+str(new_keys)+" and has shape "+str(new_keys.shape))
+83,84c67,68
+<             #print("energy is "+str(energy))
+<             #print("in SA mask is "+str(mask))
+---
+>             print("energy is "+str(energy))
+>             print("in SA mask is "+str(mask))
+92,93c76
+<             energy = energy.masked_fill(mask == 1, float("-1e20"))
+<         #if True:
+---
+>             energy = energy.masked_fill(mask == 0, float("-1e20"))
+97d79
+<         #if True:
+101c83
+<         #print("attention is "+str(attention))
+---
+> 
+131c113
+<         #if True:
+---
+>         attention, attn_weights = self.attention(value, key, query, average_attn_weights=False)
+137,140d118
+< 
+<         attention, attn_weights = self.attention(query, key, value, average_attn_weights=False)
+<         #print("attention is "+str(attention))
+<         #print("attention weights is "+str(attn_weights))
+145d122
+<         #if True:
+182d158
+<         #print("Encoder forward received x as "+str(x))
+189c165
+<         #print("embedded positions is "+str(embedded_positions))
+---
+> 
+194d169
+<         #if True:
+198d172
+<             print("out is "+str(out))
+203d176
+<             #if True:
+210,212c183
+<         self.attention = nn.MultiheadAttention(voxel_dim, heads, batch_first=True)
+< 
+<         #self.attention = SelfAttention(voxel_dim, heads)
+---
+>         self.attention = SelfAttention(voxel_dim, heads)
+270c241
+<             next_sequence_labels,
+---
+>             num_CLS_labels,
+288c259,261
+<         print("Model has "+str(heads)+" many attention heads and "+str(num_layers)+" many layers and a forward expansion factor of "+str(forward_expansion))
+---
+>         print("Model has " + str(heads) + " many attention heads and " + str(
+>             num_layers) + " many layers and a forward expansion factor of " + str(forward_expansion))
+> 
+300c273
+<             next_sequence_labels,
+---
+>             num_CLS_labels,
+313c286
+<             nn.Linear(voxel_dim//2, next_sequence_labels),
+---
+>             nn.Linear(voxel_dim//2, num_CLS_labels),
+328a302,307
+>         self.output_layer_finetune = nn.Sequential(
+>             # nn.Linear(voxel_dim, voxel_dim//2),
+>             # nn.Linear(voxel_dim//2, next_sequence_labels),
+>             nn.Linear(voxel_dim,num_CLS_labels),
+>             nn.Softmax(dim=1)
+>             #nn.ReLU()
+329a309
+>         )
+366d345
+<         #if True:
+374c353,354
+<         batch_MSK_tokens = []
+---
+>         if(mask_indices!="finetune"):
+>             batch_MSK_tokens = []
+376,390c356,368
+<         BATCHSIZE=len(mask_indices)
+<         voxel_dim=0 #just to get rid of a warning, gets overwritten in for loop below
+<         #make a list of the final states of the MSK tokens
+<         #the mask_indices list tells us where to find them
+<         for i in range(0, BATCHSIZE):
+<             sample_mask_idxs=mask_indices[i] #a list of either two or one idxs, depending whether mask variation was true
+<             sample_mask_tokens=[]
+<             for mask_idx in sample_mask_idxs:
+<                 if(mask_idx==-1):
+<                     continue
+<                 # else:
+<                 #     print("Sending index "+str(mask_idx)+" to MSK output layer")
+<                 temp = enc_src[i][mask_idx][:]
+<             #print("in Transformer's forward, temp is "+str(temp)+" and batchmsktokens is "+str(batch_MSK_tokens))
+<                 batch_MSK_tokens.append(temp)
+---
+>             BATCHSIZE=len(mask_indices)
+>             voxel_dim=0 #just to get rid of a warning, gets overwritten in for loop below
+>             #make a list of the final states of the MSK tokens
+>             #the mask_indices list tells us where to find them
+>             for i in range(0, BATCHSIZE):
+>                 sample_mask_idxs=mask_indices[i] #a list of either two or one idxs, depending whether mask variation was true
+>                 sample_mask_tokens=[]
+>                 for mask_idx in sample_mask_idxs:
+>                     if(mask_idx==-1):
+>                         continue
+>                     temp = enc_src[i][mask_idx][:]
+>                 #print("in Transformer's forward, temp is "+str(temp)+" and batchmsktokens is "+str(batch_MSK_tokens))
+>                     batch_MSK_tokens.append(temp)
+392c370
+<         batch_MSK_tokens = torch.stack(batch_MSK_tokens) #create pytorch tensor of the tensors in the list
+---
+>             batch_MSK_tokens = torch.stack(batch_MSK_tokens) #create pytorch tensor of the tensors in the list
+399,406c377,386
+< 
+<         out_bin=self.output_layer_bin(batch_CLS_tokens)
+<         if(self.mask_task=="genre_decoding"):
+<             out_multi=self.output_layer_genredecoding(batch_MSK_tokens)
+<         elif(self.mask_task=="reconstruction"):
+<             #print("batch msk tokens is "+str(batch_MSK_tokens))
+<             out_multi=self.output_layer_reconstruction(batch_MSK_tokens)
+<         return out_bin, out_multi
+---
+>         if(mask_indices=="finetune"):
+>             out_finetune=self.output_layer_finetune(batch_CLS_tokens)
+>             return out_finetune
+>         else:
+>             out_bin=self.output_layer_bin(batch_CLS_tokens)
+>             if(self.mask_task=="genre_decoding"):
+>                 out_multi=self.output_layer_genredecoding(batch_MSK_tokens)
+>             elif(self.mask_task=="reconstruction"):
+>                 out_multi=self.output_layer_reconstruction(batch_MSK_tokens)
+>             return out_bin, out_multi

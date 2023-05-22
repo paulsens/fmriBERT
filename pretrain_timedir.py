@@ -140,7 +140,7 @@ if __name__ == "__main__":
             "EPOCHS" : EPOCHS,
             "LEARNING_RATE" : LR, # set at top of this file or by command line argument
             #Have to manually set the name of the folder whose training data you want to use, since there will be many
-            "data_dir" : "2023-01-01-10TR", # yyyy-mm-dd
+            "data_dir" : "2023-01-31-10TR_timbre_8fold", # yyyy-mm-dd
             #Manually set the hemisphere and iteration number of the dataset you want to use in that folder
             "hemisphere": "left",
             "count" : str(thiscount), # count and thiscount can be read as the index of the heldout run
@@ -149,7 +149,7 @@ if __name__ == "__main__":
             "mask_variation":mask_variation, # whether to just pick one thing to mask at random, or 50% of picking two things
                                             # BERT uses the latter, but when sample length is only 5 i think two masks is too difficult for the model
             "within_subject":1, # this doesn't really do anything now that inputs aren't paired, but it does serve as a reminder that the training data was created within subject (or not, potentially in the future)
-            "num_subjects":5, # nakai et al's music genre dataset had 5 subjects
+            "num_subjects":17, # nakai et al's music genre dataset had 5 subjects, michael's had 17
             "heldout_run":thiscount,
             "held_start":held_start, # calculated above when handling command line args
             "held_range":held_range
@@ -164,6 +164,7 @@ if __name__ == "__main__":
         torch.set_default_dtype(torch.float32)
 
         #set up logfile, PRETRAIN_LOG_PATH is defined in Constants.py
+        # task is either both, CLS_only or MSK_only
         today_dir = PRETRAIN_TIMEDIR_LOG_PATH+str(hp_dict["task"])+"/"+str(today)+"/"
         if not (os.path.exists(today_dir)):
             os.mkdir(today_dir)

@@ -300,13 +300,25 @@ class Transformer(nn.Module):
             nn.Linear(voxel_dim, voxel_dim),
         )
         self.output_layer_finetune = nn.Sequential(
-            # nn.Linear(voxel_dim, voxel_dim//2),
-            # nn.Linear(voxel_dim//2, next_sequence_labels),
             nn.Linear(voxel_dim,num_CLS_labels),
             nn.Softmax(dim=1)
             #nn.ReLU()
 
         )
+        self.output_layer_bin_switch = nn.Sequential(
+            nn.Linear(voxel_dim,num_CLS_labels),
+            nn.Softmax(dim=1)
+            #nn.ReLU()
+
+        )
+        self.output_layer_finetune_switch = nn.Sequential(
+            nn.Linear(voxel_dim, voxel_dim//2),
+            nn.Linear(voxel_dim//2, num_CLS_labels),
+            nn.Softmax(dim=1)
+            #nn.ReLU()
+
+        )
+
         self.src_pad_sequence = src_pad_sequence
         self.device = device
 
@@ -350,7 +362,7 @@ class Transformer(nn.Module):
         #out = self.decoder(trg, enc_src, src_mask, trg_mask)
         #print("enc_src has shape "+str(enc_src.shape))
         batch_CLS_tokens = enc_src[:,0,:] #slice out the first element of each transformed sequence (the final form of CLS token)
-        if(mask_indices!="finetune"):
+        if(mask_indices not in ["finetune", "sametimbre", "finetune_switch", "sametimbre_switch"]):
             batch_MSK_tokens = []
 
             BATCHSIZE=len(mask_indices)
@@ -377,8 +389,19 @@ class Transformer(nn.Module):
         if(mask_indices=="finetune"):
             out_finetune=self.output_layer_finetune(batch_CLS_tokens)
             return out_finetune
-        else:
+        elif(mask_indices=="sametimbre"):
             out_bin=self.output_layer_bin(batch_CLS_tokens)
+            return out_bin
+        elif(mask_indices=="finetune_switch"): # to try a different composition of the output layer
+            out_finetune=self.output_layer_finetune_switch(batch_CLS_tokens)
+            return out_finetune
+        elif(mask_indices=="sametimbre_switch"):
+            out_bin=self.output_layer_bin_switch(batch_CLS_tokens)
+            return out_bin
+        else:
+            #out_bin=self.output_layer_bin(batch_CLS_tokens)
+            out_bin=self.output_layer_bin_switch(batch_CLS_tokens)
+
             if(self.mask_task=="genre_decoding"):
                 out_multi=self.output_layer_genredecoding(batch_MSK_tokens)
             elif(self.mask_task=="reconstruction"):
