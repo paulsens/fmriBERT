@@ -20,6 +20,8 @@ PosNeg = True # True or False for sametimbre finetuning, were both a True and Fa
 MASK_INDICES = "finetune" #legacy crap that needs to be replaced, should be finetune or sametimbre
 best_listFalsePosNeg = [(0,10), (1,6), (2,10), (3,10), (4,10), (5,10), (6,5), (7,9), (8,10), (9,10)] # (index, epoch) to load weights
 best_listTruePosNeg = [(0,9), (1,10), (2,9), (3,10), (4,8), (5,7), (6,10), (7,9), (8,10), (9,10)]
+best_listLeftHeldoutSubs = [(0, 5), (1, 7), (2, 4), (3, 6), (4, 9), (5, 4), (6, 9), (7, 8)] # epochs are 0-indexed
+best_listRightHeldoutSubs = [(0, 6), (1, 6), (2, 9), (3, 4), (4, 8), (5, 8), (6, 7), (7, 9)]
 
 
 null_model = False # wildly important that this is set to False when training real models
@@ -146,6 +148,11 @@ if __name__ == "__main__":
             bests_list = bests_both
         elif pretrain_task == "CLS_only":
             bests_list = bests_CLS_only
+        elif pretrain_task == "rightHeldoutSubs":
+            bests_list = best_listRightHeldoutSubs
+        elif pretrain_task == "leftHeldoutSubs":
+            bests_list = best_listLeftHeldoutSubs
+
 
     if "-finetune_task" in opts:
         idx = opts.index("-finetune_task")
@@ -157,8 +164,17 @@ if __name__ == "__main__":
             dataset = "/isi/music/auditoryimagery2/seanthesis/opengenre/preproc/training_data/2022-11-14/"
             num_subjects = 5
         elif finetune_task == "sametimbre":
+            if pretrain_task == "rightHeldoutSubs":
+                dataset = "/isi/music/auditoryimagery2/seanthesis/pitchclass/finetuning/sametimbre/datasets/2023-08-03-5TR_audimg_HOruns_hasimagined_1-1-pairs_repetition1_rightSTG_2heldout/"
+            elif pretrain_task == "leftHeldoutSubs":
+                dataset = "/isi/music/auditoryimagery2/seanthesis/pitchclass/finetuning/sametimbre/datasets/2023-08-03-5TR_audimg_HOruns_hasimagined_1-1-pairs_repetition1_leftSTG_2heldout/"
+            elif pretrain_task == "rightHeldoutSubsFresh":
+                dataset = "/isi/music/auditoryimagery2/seanthesis/pitchclass/finetuning/sametimbre/datasets/2023-08-03-5TR_audimg_HOruns_hasimagined_1-1-pairs_repetition1_rightSTG_2heldout/"
+            elif pretrain_task == "leftHeldoutSubsFresh":
+                dataset = "/isi/music/auditoryimagery2/seanthesis/pitchclass/finetuning/sametimbre/datasets/2023-08-03-5TR_audimg_HOruns_hasimagined_1-1-pairs_repetition1_leftSTG_2heldout/"
+            else:
             # the 5 at the end is a specific version of the sametimbre dataset, change that last folder for different intentions
-            dataset = "/isi/music/auditoryimagery2/seanthesis/pitchclass/finetuning/sametimbre/datasets/2023-04-13-5TR_audimg_HOruns_hasimagined_1-1-pairs_repetition2/"
+                dataset = "/isi/music/auditoryimagery2/seanthesis/pitchclass/finetuning/sametimbre/datasets/2023-04-13-5TR_audimg_HOruns_hasimagined_1-1-pairs_repetition2/"
             num_subjects = 17
         else:
             print("Needs a finetuning task even if it's a fresh model, quitting...")
@@ -181,14 +197,24 @@ if __name__ == "__main__":
             print("For heldout run {0} we're loading the states saved for {1} pretraining after epoch {2}".format(heldout_run, pretrain_task, best_epoch))
             pretrained_model_states = "/isi/music/auditoryimagery2/seanthesis/thesis/pairedpretrain/trained_models/" + pretrain_task + "/states_" + str(heldout_run) + str(best_epoch)+".pt"
         elif finetune_task=="sametimbre":
-            if PosNeg == False:
-                best_epoch = best_listFalsePosNeg[int(saved_model_index)][1] # the list at the top of the file tells us which model to load, as the model was saved for every epoch during pretraining
-                best_epoch = best_epoch - 1 # the bests list runs from 1 to 10, saved weights go from 0 to 9
-            elif PosNeg == True:
-                best_epoch = best_listTruePosNeg[int(saved_model_index)][1] # the list at the top of the file tells us which model to load, as the model was saved for every epoch during pretraining
-                best_epoch = best_epoch - 1 + 10# the bests list runs from 1 to 10, saved weights go from 0 to 9
+
+            if pretrain_task == "leftHeldoutSubs":
+                best_epoch = bests_list[int(saved_model_index)][1] # the list at the top of the file tells us which model to load, as the model was saved for every epoch during pretraining
+                saved_model_index = heldout_run
+            elif pretrain_task == "rightHeldoutSubs":
+                best_epoch = bests_list[int(saved_model_index)][1] # the list at the top of the file tells us which model to load, as the model was saved for every epoch during pretraining
+                best_epoch = best_epoch + 10 # filename format stuff, trust
+                saved_model_index = heldout_run
+            # stuff before thesis revisions
+            else:
+                if PosNeg == False:
+                    best_epoch = best_listFalsePosNeg[int(saved_model_index)][1] # the list at the top of the file tells us which model to load, as the model was saved for every epoch during pretraining
+                    best_epoch = best_epoch - 1 # the bests list runs from 1 to 10, saved weights go from 0 to 9
+                elif PosNeg == True:
+                    best_epoch = best_listTruePosNeg[int(saved_model_index)][1] # the list at the top of the file tells us which model to load, as the model was saved for every epoch during pretraining
+                    best_epoch = best_epoch - 1 + 10# the bests list runs from 1 to 10, saved weights go from 0 to 9
             print("For heldout run {0} we're loading the states saved for {1} pretraining after epoch {2}".format(heldout_run, pretrain_task, best_epoch))
-            pretrained_model_states = "/isi/music/auditoryimagery2/seanthesis/thesis/pairedpretrain/trained_models/audimg/CLS_only/states_{0}{1}.pt".format(saved_model_index, best_epoch)
+            pretrained_model_states = "/isi/music/auditoryimagery2/seanthesis/thesis/pairedpretrain/trained_models/audimgrevision/CLS_only/states_{0}{1}.pt".format(saved_model_index, best_epoch)
             # pretrained_model_states = "/isi/music/auditoryimagery2/seanthesis/thesis/pairedpretrain/trained_models/audimg/CLS_only/states_09.pt"
 
 
@@ -202,7 +228,7 @@ if __name__ == "__main__":
 
         "pretrain_task": pretrain_task,  # throughout the code, task is what the model was pretrained on
         # CLS and MSK task are also referring to what the model was trained on
-        #"CLS_task": "sametimbre",  # samegenre or sametimbre
+        "CLS_task": "sametimbre",  # samegenre or sametimbre
         "num_CLS_labels": 2,
         "MSK_task": "finetune",
         "finetune_task": finetune_task,
@@ -268,9 +294,9 @@ if __name__ == "__main__":
             train_Y_detailed = pickle.load(labels_fp)
 
     elif orig_dataset == "audimg":
-        with open(hp_dict["data_path"] + "all_X.p", "rb") as samples_fp:
+        with open(hp_dict["data_path"] + "all_X_fold"+str(heldout_run)+".p", "rb") as samples_fp:
             train_X = pickle.load(samples_fp)
-        with open(hp_dict["data_path"] + "all_y.p", "rb") as labels_fp:
+        with open(hp_dict["data_path"] + "all_y_fold"+str(heldout_run)+".p", "rb") as labels_fp:
             train_Y_detailed = pickle.load(labels_fp)
 
 
@@ -282,9 +308,9 @@ if __name__ == "__main__":
                   "rb") as labels_fp:
             val_Y_detailed = pickle.load(labels_fp)
     elif orig_dataset == "audimg":
-        with open(hp_dict["data_path"] + "all_val_X.p", "rb") as samples_fp:
+        with open(hp_dict["data_path"] + "all_val_X_fold"+str(heldout_run)+".p", "rb") as samples_fp:
             val_X = pickle.load(samples_fp)
-        with open(hp_dict["data_path"] + "all_val_y.p", "rb") as labels_fp:
+        with open(hp_dict["data_path"] + "all_val_y_fold"+str(heldout_run)+".p", "rb") as labels_fp:
             val_Y_detailed = pickle.load(labels_fp)
 
     # the labels are detailed tuples, so let's just extract the True/False value into a list that we can turn into a tensor
@@ -337,7 +363,7 @@ if __name__ == "__main__":
                         forward_expansion=hp_dict["forward_expansion"]).to(hp_dict["device"])
 
     # if we want to load pretrained weights:
-    if pretrain_task != "fresh":
+    if pretrain_task not in ["fresh", "leftHeldoutSubsFresh", "rightHeldoutSubsFresh"]:
         model.load_state_dict(torch.load(pretrained_model_states), strict=False)
         if freeze_pretrained:
             finetune_params = ["output_layer_finetune.1.bias", "output_layer_finetune.1.weight",
@@ -356,6 +382,8 @@ if __name__ == "__main__":
     optimizer = optim.Adam(training_tensors, lr=hp_dict["LEARNING_RATE"], betas=(0.9, 0.999), weight_decay=0.0001)
 
     # train
+    best_avg_val_acc = 0
+    best_val_epoch = -1
     for e in range(1, hp_dict["EPOCHS"]+1):
         # 0'th index is the number of times the model was correct when the ground truth was 0, and when ground truth was 1
         bin_correct_train = [0, 0]
@@ -476,6 +504,8 @@ if __name__ == "__main__":
             # after batch
         # after with torch.no_grad()
         # print training stats for this epoch
+        avg_val_acc = val_acc / len(val_loader)
+
         print("Epoch bin training stats:")
         print(
             f'Epoch {e + 0:03}: | Loss: {epoch_loss / len(train_loader):.5f} | Acc: {epoch_acc / len(train_loader):.3f}')
@@ -490,16 +520,17 @@ if __name__ == "__main__":
         print("number of samples: " + str(len(val_loader)))
 
         if save_model: # save model is set by command line argument
-            modelcount=0
-            model_path = "/isi/music/auditoryimagery2/seanthesis/thesis/pairedfinetune/trained_models/"+str(hp_dict["finetune_task"])+"/"+str(hp_dict["pretrain_task"])+"/states_"+str(thiscount)+str(modelcount)+".pt"
-            while(os.path.exists(model_path)):
-                modelcount+=1
-                model_path = "/isi/music/auditoryimagery2/seanthesis/thesis/pairedfinetune/trained_models/"+str(hp_dict["finetune_task"])+"/"+str(hp_dict["pretrain_task"])+"/states_"+str(thiscount)+str(modelcount)+".pt"
+            if avg_val_acc > best_avg_val_acc:
+                #modelcount=0
+                best_avg_val_acc = avg_val_acc
+                best_val_epoch = e
+                model_path = "/isi/music/auditoryimagery2/seanthesis/thesis/pairedfinetune/trained_models/"+str(hp_dict["finetune_task"])+"/"+str(hp_dict["pretrain_task"])+"/states_"+str(thiscount)+".pt"
 
-            torch.save(model.state_dict(),model_path)
-            model_path = "/isi/music/auditoryimagery2/seanthesis/thesis/pairedfinetune/trained_models/"+str(hp_dict["finetune_task"])+"/"+str(hp_dict["pretrain_task"])+"/full_" + str(thiscount) + str(
-                modelcount) + ".pt"
-            torch.save(model,model_path)
+
+                torch.save(model.state_dict(),model_path)
+                model_path = "/isi/music/auditoryimagery2/seanthesis/thesis/pairedfinetune/trained_models/"+str(hp_dict["finetune_task"])+"/"+str(hp_dict["pretrain_task"])+"/full_" + str(thiscount) + ".pt"
+                torch.save(model,model_path)
+    print("Best val epoch was "+str(best_val_epoch))
 
     log.close()
 

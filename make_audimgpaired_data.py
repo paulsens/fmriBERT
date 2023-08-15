@@ -178,12 +178,14 @@ def make_sametimbre_data(sub_allruns, run_list=None, TRSperrun=223, pos_and_neg=
 
     return X_sub, y_sub
 ###### parameters and paths
-NUM_TOKENS = 3  # number of dimensions reserved by tokens, e.g CLS/MSK
-hemisphere="left"
+NUM_TOKENS = 2  # number of dimensions reserved by tokens, e.g CLS/MSK
+hemisphere="right"
 threshold="23"
 ROI="STG"
 n_runs=8 #all subjects had 8 runs in this dataset
 sublist = ["1088", "1125", "1401", "1410", "1419", "1427", "1541", "1571", "1581", "1660", "1661", "1664", "1665", "1668", "1672", "1678", "1680"]
+sublist_shuffled = ['1668', '1410', '1678', '1088', '1672', '1419', '1571', '1541', '1401', '1660', '1664', '1427', '1680', '1125', '1581', '1665', '1661']
+
 if NUM_TOKENS == 2:
     ROIfile_str=ROI+"_allruns"+str(hemisphere)+"_t"+str(threshold)+"_"+str(NUM_TOKENS)+"tokens.p"
 else:
@@ -196,7 +198,6 @@ forward_count=0
 reverse_count=0
 voxel_dim = 420
 
-voxel_dim=420
 CLS = [1] + ([0] * (voxel_dim - 1))  # first dimension is reserved for cls_token flag
 MSK = [0, 1] + ([0] * (voxel_dim - 2))  # second dimension is reserved for msk_token flag
 SEP = [0, 0, 1] + ([0] * (voxel_dim - 3))  # third dimension is reserved for sep_token flag
@@ -208,12 +209,36 @@ yval_allsubs = []
 
 stride = 2 # how much does the window move after constructing a sample? set to WINDOW_LENGTH (defined at top) if you don't want overlap
 p_and_n = True # include positive and negative sample for each 5seq or not
-save_path = "/Volumes/External/pitchclass/pretraining/"+str(time)+"-"+str(seq_len)+"TR_"+str(stride)+"stride_"+str(p_and_n)+"posneg/"
-if not os.path.exists(save_path):
-    os.mkdir(save_path)
 
 if __name__=="__main__":
-    task = "sametimbre"  # either sametimbre or NTP
+    # task is either sametimbre or ntp
+    #task = "sametimbre"
+    task = "sametimbre"
+    fold = 0
+    holdout_subjects = 2  # number of subjects to hold out per fold. 0 means that runs are held out instead
+
+    if task == "ntp":
+        if holdout_subjects == 0:
+            save_path = "/Volumes/External/pitchclass/pretraining/" + str(time) + "-" + str(seq_len) + "TR_" + str(
+                stride) + "stride_" + str(p_and_n) + "posneg/"
+        else:
+            save_path = "/Volumes/External/pitchclass/pretraining/" + str(time) + "-" + str(seq_len) + "TR_" + str(
+                stride) + "stride_" + str(p_and_n) + "posneg_" + str(holdout_subjects) + "heldout/"
+    elif task == "sametimbre":
+        if holdout_subjects == 0:
+            save_path = "/Volumes/External/pitchclass/finetuning/sametimbre/datasets/" + str(time) + "-" + str(seq_len) + "TR_" + "hasimagined_" + str(p_and_n) + "posneg/"
+        else:
+            save_path = "/Volumes/External/pitchclass/finetuning/sametimbre/datasets/" + str(time) + "-" + str(seq_len) + "TR_" + "hasimagined_" + str(p_and_n) + "posneg_" + str(holdout_subjects) + "heldout_"+str(hemisphere)+"STG/"
+
+    if not os.path.exists(save_path):
+        os.mkdir(save_path)
+
+    # grab the heldout IDs from the shuffled list
+    heldout_subIDs = []
+    if holdout_subjects>0:
+        for i in range(0, holdout_subjects):
+            heldout_subIDs.append(sublist_shuffled[fold*holdout_subjects+i])
+
     for sub in sublist:
         # load flattened data
         subid = "sub-sid00" + sub
@@ -236,14 +261,37 @@ if __name__=="__main__":
         window_end = window_start + stride
 
         if task=="ntp":
-            X_training, y_training = make_ntp_data(sub_allruns, run_list = [0, 1, 2, 3], TRSperrun = TRSperrun, startTR = startTR, stride=stride, pos_and_neg=p_and_n)
+            if holdout_subjects == 0:
+                X_training, y_training = make_ntp_data(sub_allruns, run_list = [0, 1, 2, 3], TRSperrun = TRSperrun, startTR = startTR, stride=stride, pos_and_neg=p_and_n)
 
-            X_val, y_val = make_ntp_data(sub_allruns, run_list = [4, 5, 6, 7], TRSperrun = TRSperrun, startTR = startTR, stride=stride, pos_and_neg=p_and_n)
+                X_val, y_val = make_ntp_data(sub_allruns, run_list = [4, 5, 6, 7], TRSperrun = TRSperrun, startTR = startTR, stride=stride, pos_and_neg=p_and_n)
+
+            else: # if we're holding out subjects, check if this one is held out
+                if sub in heldout_subIDs:
+                    X_training = [] # this sub contributes nothing to training data
+                    y_training = []
+                    X_val, y_val = make_ntp_data(sub_allruns, run_list = [0, 1, 2, 3, 4, 5, 6, 7], TRSperrun = TRSperrun, startTR = startTR, stride = stride, pos_and_neg=p_and_n)
+                else: # if it's not held out, contribute everything to training data and nothing to val
+                    X_training, y_training = make_ntp_data(sub_allruns, run_list = [0, 1, 2, 3, 4, 5, 6, 7], TRSperrun = TRSperrun, startTR = startTR, stride = stride, pos_and_neg=p_and_n)
+                    X_val = []
+                    y_val = []
+
 
         elif task=="sametimbre":
-            X_training, y_training = make_sametimbre_data(sub_allruns, run_list = [0, 1, 2, 3], TRSperrun = TRSperrun, startTR = startTR, stride=stride, pos_and_neg=p_and_n)
+            if holdout_subjects == 0:
+                X_training, y_training = make_sametimbre_data(sub_allruns, run_list = [0, 1, 2, 3], TRSperrun = TRSperrun, pos_and_neg=p_and_n)
 
-            X_val, y_val = make_sametimbre_data(sub_allruns, run_list = [4, 5, 6, 7], TRSperrun = TRSperrun, startTR = startTR, stride=stride, pos_and_neg=p_and_n)
+                X_val, y_val = make_sametimbre_data(sub_allruns, run_list = [4, 5, 6, 7], TRSperrun = TRSperrun, pos_and_neg=p_and_n)
+
+            else: # if we're holding out subjects, check if this one is held out
+                if sub in heldout_subIDs:
+                    X_training = [] # this sub contributes nothing to training data
+                    y_training = []
+                    X_val, y_val = make_sametimbre_data(sub_allruns, run_list = [0, 1, 2, 3, 4, 5, 6, 7], TRSperrun = TRSperrun, pos_and_neg=p_and_n)
+                else: # if it's not held out, contribute everything to training data and nothing to val
+                    X_training, y_training = make_sametimbre_data(sub_allruns, run_list = [0, 1, 2, 3, 4, 5, 6, 7], TRSperrun = TRSperrun,  pos_and_neg=p_and_n)
+                    X_val = []
+                    y_val = []
 
         Xtrain_allsubs.extend(X_training)
         ytrain_allsubs.extend(y_training)
@@ -254,16 +302,25 @@ if __name__=="__main__":
 
     all_save_path = save_path + "all_"
 
-    with open(all_save_path + "X.p", "wb") as temp_fp:
-        pickle.dump(Xtrain_allsubs, temp_fp)
-    with open(all_save_path + "y.p", "wb") as temp_fp:
-        pickle.dump(ytrain_allsubs, temp_fp)
-    with open(all_save_path + "val_X.p", "wb") as temp_fp:
-        pickle.dump(Xval_allsubs, temp_fp)
-    with open(all_save_path + "val_y.p", "wb") as temp_fp:
-        pickle.dump(yval_allsubs, temp_fp)
+    if holdout_subjects == 0:
+        with open(all_save_path + "X.p", "wb") as temp_fp:
+            pickle.dump(Xtrain_allsubs, temp_fp)
+        with open(all_save_path + "y.p", "wb") as temp_fp:
+            pickle.dump(ytrain_allsubs, temp_fp)
+        with open(all_save_path + "val_X.p", "wb") as temp_fp:
+            pickle.dump(Xval_allsubs, temp_fp)
+        with open(all_save_path + "val_y.p", "wb") as temp_fp:
+            pickle.dump(yval_allsubs, temp_fp)
 
-
+    else:
+        with open(all_save_path + "X_fold"+str(fold)+".p", "wb") as temp_fp:
+            pickle.dump(Xtrain_allsubs, temp_fp)
+        with open(all_save_path + "y_fold"+str(fold)+".p", "wb") as temp_fp:
+            pickle.dump(ytrain_allsubs, temp_fp)
+        with open(all_save_path + "val_X_fold"+str(fold)+".p", "wb") as temp_fp:
+            pickle.dump(Xval_allsubs, temp_fp)
+        with open(all_save_path + "val_y_fold"+str(fold)+".p", "wb") as temp_fp:
+            pickle.dump(yval_allsubs, temp_fp)
 
 
 

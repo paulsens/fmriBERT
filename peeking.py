@@ -27,6 +27,7 @@ with open(badlabels,"rb") as bl:
 MSK_token = [0, 1] + ([0] * (voxel_dim - 2))  # second dimension is reserved for msk_token flag
 MSK_token = np.array(MSK_token)
 MSK_token = torch.from_numpy(MSK_token)
+CLS_token = [1] + ([0] * (voxel_dim -1))
 
 def try_dataset(modeldir, data, labels, task):
     model=torch.load(modeldir)

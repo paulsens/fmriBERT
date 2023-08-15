@@ -14,7 +14,7 @@ import sys
 import os
 import datetime
 
-null_model = True # wildly important that this is set to False when training real models
+null_model = False # wildly important that this is set to False when training real models
 null_labels  = np.ones(7548) # number of training samples on sametimbre with runs 5-8 held out
 null_labels[:3774]=0
 np.random.shuffle(null_labels)
@@ -29,7 +29,7 @@ seed=3
 mask_variation=True
 valid_accuracy=True
 
-LR_def=0.0001 #defaults, should normally be set by command line
+LR_def=0.00001 #defaults, should normally be set by command line
 printed_count=0
 val_printed_count=0
 #torch.use_deterministic_algorithms(True)
@@ -152,7 +152,8 @@ if __name__ == "__main__":
             if orig_dataset=="genre":
                 dataset="2022-06-12" #dataset for opengenre
             elif orig_dataset=="audimg":
-                dataset = "2023-03-29-5TR_2stride_Falseposneg" #stride is 2 or 5, posneg is True or False
+                #dataset = "2023-03-29-5TR_2stride_Trueposneg" #stride is 2 or 5, posneg is True or False
+                dataset = "2023-08-03-5TR_2stride_Trueposneg_2heldout_leftSTG"
         elif seq_len==10:
             dataset="did i make one of these?"
         else:
@@ -227,12 +228,11 @@ if __name__ == "__main__":
         #write hyperparameters to log
         for hp in hp_dict.keys():
             log.write(str(hp)+" : "+str(hp_dict[hp])+"\n")
-
-        seed = hp_dict["heldout_run"]
-        random.seed(seed)
+        
+        seed=hp_dict["heldout_run"]
+        random.seed(seed) # seed is the index of this run in the bash script's loop
         torch.manual_seed(seed)
         np.random.seed(seed)
-
 
         #load samples and labels
         if orig_dataset=="genre":
@@ -244,9 +244,11 @@ if __name__ == "__main__":
                 ref_samples = pickle.load(refsamples_fp)
 
         elif orig_dataset=="audimg":
-            with open(hp_dict["data_path"] +"all_X.p", "rb") as samples_fp:
+            #with open(hp_dict["data_path"] +"all_X.p", "rb") as samples_fp:
+            with open(hp_dict["data_path"] +"all_X_fold"+str(hp_dict["heldout_run"])+".p", "rb") as samples_fp:
                 train_X = pickle.load(samples_fp)
-            with open(hp_dict["data_path"] + "all_y.p", "rb") as labels_fp:
+            #with open(hp_dict["data_path"] + "all_y.p", "rb") as labels_fp:
+            with open(hp_dict["data_path"] + "all_y_fold" + str(hp_dict["heldout_run"]) + ".p", "rb") as labels_fp:
                 train_Y = pickle.load(labels_fp)
             ref_samples=None
             #ref_samples has length 5400, 1080*5subjects.
@@ -262,9 +264,12 @@ if __name__ == "__main__":
                 with open(hp_dict["data_path"] + hp_dict["hemisphere"] + "_vallabels"+hp_dict["count"]+".p", "rb") as labels_fp:
                     val_Y = pickle.load(labels_fp)
             elif orig_dataset=="audimg":
-                with open(hp_dict["data_path"] + "all_val_X.p", "rb") as samples_fp:
+                #with open(hp_dict["data_path"] + "all_val_X.p", "rb") as samples_fp:
+                with open(hp_dict["data_path"] + "all_val_X_fold" + str(hp_dict["heldout_run"]) + ".p", "rb") as samples_fp:
+
                     val_X = pickle.load(samples_fp)
-                with open(hp_dict["data_path"] + "all_val_y.p", "rb") as labels_fp:
+                #with open(hp_dict["data_path"] + "all_val_y.p", "rb") as labels_fp:
+                with open(hp_dict["data_path"] + "all_val_y_fold" + str(hp_dict["heldout_run"]) + ".p", "rb") as labels_fp:
                     val_Y = pickle.load(labels_fp)
 
 
@@ -622,13 +627,13 @@ if __name__ == "__main__":
 
             if save_model: # save model is set by command line argument
                 modelcount=0
-                model_path = "/isi/music/auditoryimagery2/seanthesis/thesis/pairedpretrain/trained_models/audimg/"+str(hp_dict["task"])+"/states_"+str(thiscount)+str(modelcount)+".pt"
+                model_path = "/isi/music/auditoryimagery2/seanthesis/thesis/pairedpretrain/trained_models/audimgrevision/"+str(hp_dict["task"])+"/states_"+str(thiscount)+str(modelcount)+".pt"
                 while(os.path.exists(model_path)):
                     modelcount+=1
-                    model_path = "/isi/music/auditoryimagery2/seanthesis/thesis/pairedpretrain/trained_models/audimg/"+str(hp_dict["task"])+"/states_"+str(thiscount)+str(modelcount)+".pt"
+                    model_path = "/isi/music/auditoryimagery2/seanthesis/thesis/pairedpretrain/trained_models/audimgrevision/"+str(hp_dict["task"])+"/states_"+str(thiscount)+str(modelcount)+".pt"
 
                 torch.save(model.state_dict(),model_path)
-                model_path = "/isi/music/auditoryimagery2/seanthesis/thesis/pairedpretrain/trained_models/audimg/"+str(hp_dict["task"])+"/full_" + str(thiscount) + str(
+                model_path = "/isi/music/auditoryimagery2/seanthesis/thesis/pairedpretrain/trained_models/audimgrevision/"+str(hp_dict["task"])+"/full_" + str(thiscount) + str(
                     modelcount) + ".pt"
                 torch.save(model,model_path)
 

@@ -1,2 +1,6 @@
-mystr = "blah:f"
-print(mystr.split(":"))
+import random
+
+sublist = ["1088", "1125", "1401", "1410", "1419", "1427", "1541", "1571", "1581", "1660", "1661", "1664", "1665", "1668", "1672", "1678", "1680"]
+
+random.shuffle(sublist)
+print(sublist)

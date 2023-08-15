@@ -334,8 +334,8 @@ def get_samplelabel_single(this_idx, sub_cycles, sub_allruns, CLS, run_idx, cycl
 
 ###### parameters and paths
 debug=1
-NUM_TOKENS = 3  # number of dimensions reserved by tokens, e.g CLS/MSK
-hemisphere="left"
+NUM_TOKENS = 2  # number of dimensions reserved by tokens, e.g CLS/MSK
+hemisphere="right"
 threshold="23"
 ROI="STG"
 n_runs=8 #all subjects had 8 runs in this dataset
@@ -408,7 +408,7 @@ seq_len = 5
 forward_count=0
 reverse_count=0
 #save_path = "/Volumes/External/timedir/training_data/"+str(time)+"-"+str(seq_len)+"TR_audimg_HOruns_hasimagined/"
-save_path = "/Volumes/External/pitchclass/finetuning/sametimbre/datasets/"+str(time)+"-"+str(seq_len)+"TR_audimg_HOruns_hasimagined_1-1-pairs_repetition1/"
+save_path = "/Volumes/External/pitchclass/finetuning/sametimbre/datasets/"+str(time)+"-"+str(seq_len)+"TR_audimg_HOruns_hasimagined_1-1-pairs_repetition1_rightSTG_runsheldout/"
 
 if not os.path.exists(save_path):
     os.mkdir(save_path)
@@ -886,10 +886,11 @@ if __name__ == "__main__":
             held_per_fold = int(hold_str[0]) # number of subjects to be held out in each split
             runs_held = hold_str[1] # either half or all
 
-            shuffled_subs = sublist.copy()
-            random.shuffle(shuffled_subs)
+            # this shuffled subject list is the same as was used for making NTP with heldout subs
+            shuffled_subs = ['1668', '1410', '1678', '1088', '1672', '1419', '1571', '1541', '1401', '1660', '1664',
+                                '1427', '1680', '1125', '1581', '1665', '1661']            #random.shuffle(shuffled_subs)
             num_folds = len(shuffled_subs)//held_per_fold # integer division, some subject may not be held out at all
-
+            print("num folds is "+str(num_folds))
         for fold in range(0, num_folds):
             all_X = []
             all_y = []
