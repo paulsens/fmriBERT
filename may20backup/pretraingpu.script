@@ -1,0 +1,33 @@
+#!/bin/bash
+
+# Name of the job
+#SBATCH --job-name=pretrain_gpu
+
+# Number of compute nodes
+#SBATCH --nodes=1
+
+# Number of cores, in this case one
+#SBATCH --ntasks-per-node=1
+
+# Request the GPU partition
+#SBATCH --partition gpuq
+
+# Request the GPU resources
+#SBATCH --gres=gpu:1
+
+# Walltime (job duration)
+#SBATCH --time=00:15:00
+
+#Import environment variables from caller's environment
+#SBATCH --export=ALL
+
+#error and output files
+#SBATCH -o /isi/music/auditoryimagery2/seanthesis/pretrain1/ofiles/o_%j.txt
+#SBATCH -e /isi/music/auditoryimagery2/seanthesis/pretrain1/errfiles/o_%j.err
+
+source /dartfs-hpc/rc/home/3/f003543/.conda/envs/fmribert/bin/activate fmribert
+
+nvidia-smi
+echo $CUDA_VISIBLE_DEVICES
+
+python /isi/music/auditoryimagery2/seanthesis/pyfiles/pretrain.py -gpu $CUDA_VISIBLE_DEVICES -m "$1"

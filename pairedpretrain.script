@@ -1,0 +1,39 @@
+#!/bin/bash
+
+#Name of the job
+#SBATCH --job-name=pairedpretrain
+
+#Number of compute nodes
+#SBATCH --nodes=1
+
+#Number of tasks per node
+#SBATCH --cpus-per-task=2
+
+#Request memory
+#SBATCH --mem=20G
+
+#Walltime
+#SBATCH --time=24:00:00
+
+#Import environment variables from caller's environment
+#SBATCH --export=ALL
+
+#error and output files
+#SBATCH -o /isi/music/auditoryimagery2/seanthesis/thesis/pairedpretrain/ofiles/audimgrevision/o_%j.txt
+#SBATCH -e /isi/music/auditoryimagery2/seanthesis/thesis/pairedpretrain/errfiles/audimgrevision/o_%j.err
+#SBATCH --mail-user=paulsen.sean@gmail.com
+source /dartfs-hpc/rc/home/3/f003543/.conda/envs/fmribert/bin/activate fmribert
+
+echo "Description: $1"
+echo "Heldout Run: $2"
+echo "Binweight: $3"
+echo "Learning Rate: $4"
+echo "Save Model: $5"
+echo "Task: $6"
+echo "Attention Heads: $7"
+echo "Num Layers: $8"
+echo "Forward Expansion: $9"
+echo "Sequence Length: ${10}"
+echo "Dataset: ${11}"
+
+python /isi/music/auditoryimagery2/seanthesis/pyfiles2/pairedpretrain.py -m "$1" -heldout_run "$2" -CLS_task_weight "$3" -LR "$4" -save_model "$5" -task "$6" -attention_heads "$7" -num_layers "$8" -forward_expansion "$9" -seq_len "${10}" -dataset "${11}"

@@ -1,0 +1,33 @@
+#!/bin/bash
+
+#Name of the job
+#SBATCH --job-name=pretraintimedir1
+
+#Number of compute nodes
+#SBATCH --nodes=1
+
+#Number of tasks per node 
+#SBATCH --cpus-per-task=2
+
+#Request memory
+#SBATCH --mem=20G
+
+#Walltime
+#SBATCH --time=24:00:00
+
+#Import environment variables from caller's environment 
+#SBATCH --export=ALL
+
+#error and output files
+#SBATCH -o /isi/music/auditoryimagery2/seanthesis/opengenre/final/ofiles/both/o_%j.txt
+#SBATCH -e /isi/music/auditoryimagery2/seanthesis/pretrain1/errfiles/nov6/binaryonly/o_%j.err
+#SBATCH --mail-user=paulsen.sean@gmail.com
+source /dartfs-hpc/rc/home/3/f003543/.conda/envs/fmribert/bin/activate fmribert
+
+echo $3
+echo $4
+echo $2
+echo $1
+
+python /isi/music/auditoryimagery2/seanthesis/pyfiles2/pretrain.py -binweight "$3" -LR "$4" -count "$2" -m "$1"
+#python /isi/music/auditoryimagery2/seanthesis/backuppy/may2/pretrain.py -count "$2" -m "$1"

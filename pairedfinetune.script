@@ -1,0 +1,41 @@
+#!/bin/bash
+
+#Name of the job
+#SBATCH --job-name=pairedfinetune
+
+#Number of compute nodes
+#SBATCH --nodes=1
+
+#Number of tasks per node
+#SBATCH --cpus-per-task=2
+
+#Request memory
+#SBATCH --mem=20G
+
+#Walltime
+#SBATCH --time=24:00:00
+
+#Import environment variables from caller's environment
+#SBATCH --export=ALL
+
+#error and output files
+#SBATCH -o /isi/music/auditoryimagery2/seanthesis/thesis/pairedfinetune/ofiles/audimg/o_%j.txt
+#SBATCH -e /isi/music/auditoryimagery2/seanthesis/thesis/pairedfinetune/errfiles/o_%j.err
+#SBATCH --mail-user=paulsen.sean@gmail.com
+source /dartfs-hpc/rc/home/3/f003543/.conda/envs/fmribert/bin/activate fmribert
+
+echo "Description: $1"
+echo "Heldout Run: $2" # note this is the run that was held out during pretraining, which is now held out again and directs the model to the correct saved model
+echo "Freeze Pretrained: $3"
+echo "Learning Rate: $4"
+echo "Save Model: $5"
+echo "Pretrain Task: $6"
+echo "Attention Heads: $7"
+echo "Num Layers: $8"
+echo "Forward Expansion: $9"
+echo "Sequence Length: ${10}"
+echo "Finetune Task: ${11}"
+echo "Iteration: ${12}"
+echo "Saved Model Index: ${13}"
+
+python /isi/music/auditoryimagery2/seanthesis/pyfiles2/pairedfinetune.py -m "$1" -heldout_run "$2" -freeze_pretrained "$3" -LR "$4" -save_model "$5" -pretrain_task "$6" -attention_heads "$7" -num_layers "$8" -forward_expansion "$9" -seq_len "${10}" -finetune_task "${11}" -iteration "${12}" -saved_model_idx "${13}"
