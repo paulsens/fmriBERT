@@ -112,8 +112,13 @@ fmriBERT/
 │
 ├── pretrain_timedir_logs/       # Example pretraining logs
 │
-├── *.sh                         # Shell scripts for launching experiments
-├── *.script                     # SLURM job submission scripts
+├── scripts/                     # SLURM job scripts and launchers
+│   ├── pretrain.sh / .script    # OpenGenre pretraining
+│   ├── pretrain_timedir.sh / .script  # TimeDIR pretraining
+│   ├── paired_pretrain.sh / .script   # Paired pretraining
+│   ├── unpaired_pretrain.sh / .script # Unpaired pretraining
+│   ├── finetune.sh / .script    # Finetuning (sametimbre, samegenre)
+│   └── decode.sh / .script      # Decoding (timbre, unpaired, pitchclass)
 │
 └── deprecated/                  # Old/unused files preserved for reference
 ```
@@ -135,29 +140,50 @@ python make_timedir_data.py
 
 ### 2. Pretraining
 
-Pretrain on OpenGenre with cross-validation:
+Pretrain on OpenGenre with cross-validation (all 12 folds):
 ```bash
-python pretrain.py -count 0 -LR 1e-4 -binweight 0.5 -gpu 0 -m "opengenre_pretrain"
+bash scripts/pretrain.sh "opengenre_run" 0-11 0.5 0.0001
 ```
 
 Pretrain on TimeDIR task:
 ```bash
+bash scripts/pretrain_timedir.sh "timedir_run" 0-7 0.00001 CLS_only
+```
+
+Paired pretraining on auditory imagery data:
+```bash
+bash scripts/paired_pretrain.sh "paired_run" 0-7 0.00001 CLS_only audimg
+```
+
+Or call the Python scripts directly:
+```bash
+python pretrain.py -count 0 -LR 1e-4 -binweight 0.5 -gpu 0 -m "opengenre_pretrain"
 python pretrain_timedir.py -heldout_run 1 -task both -CLS_task_weight 0.5 -save_model True
 ```
 
 ### 3. Finetuning
 
-Fine-tune on same-timbre discrimination:
+Fine-tune on same-timbre or same-genre using the unified launcher:
+```bash
+bash scripts/finetune.sh "exp1" sametimbre both 8 0-4
+bash scripts/finetune.sh "exp1" samegenre both 10 0-4
+```
+
+Or call the Python scripts directly:
 ```bash
 python pairedfinetune.py -heldout_run 1 -pretrain_task timedir -pretrain_idx 0 -LR 1e-4
+python samegenre.py -pretrain_task both -pretrain_idx 10 -count 0
 ```
 
-Fine-tune on same-genre:
+### 4. Decoding
+
+Run timbre or pitch class decoding:
 ```bash
-python samegenre.py
+bash scripts/decode.sh "exp1" timbre 0-7 0.0000001 fresh fresh
+bash scripts/decode.sh "exp1" pitchclass 0-7 0.00001 CLS_only 0
 ```
 
-### 4. Evaluation
+### 5. Evaluation
 
 Check pretrained model performance:
 ```bash

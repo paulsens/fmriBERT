@@ -1,0 +1,32 @@
+#!/bin/bash
+
+#Name of the job
+#SBATCH --job-name=pretrain
+
+#Number of compute nodes
+#SBATCH --nodes=1
+
+#Number of tasks per node
+#SBATCH --cpus-per-task=2
+
+#Request memory
+#SBATCH --mem=20G
+
+#Walltime
+#SBATCH --time=24:00:00
+
+#Import environment variables from caller's environment
+#SBATCH --export=ALL
+
+#error and output files
+#SBATCH -o /path/to/ofiles/o_%j.txt
+#SBATCH -e /path/to/errfiles/o_%j.err
+#SBATCH --mail-user=paulsen.sean@gmail.com
+source /path/to/conda/envs/fmribert/bin/activate fmribert
+
+echo "Description: $1"
+echo "Count: $2"
+echo "Binweight: $3"
+echo "Learning Rate: $4"
+
+python /path/to/fmriBERT/pretrain.py -m "$1" -count "$2" -binweight "$3" -LR "$4"

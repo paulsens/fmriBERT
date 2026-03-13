@@ -1,0 +1,36 @@
+#!/bin/bash
+
+#Name of the job
+#SBATCH --job-name=finetune
+
+#Number of compute nodes
+#SBATCH --nodes=1
+
+#Number of tasks per node
+#SBATCH --cpus-per-task=2
+
+#Request memory
+#SBATCH --mem=20G
+
+#Walltime
+#SBATCH --time=15:00:00
+
+#Import environment variables from caller's environment
+#SBATCH --export=ALL
+
+#error and output files
+#SBATCH -o /path/to/ofiles/o_%j.txt
+#SBATCH -e /path/to/errfiles/o_%j.err
+#SBATCH --mail-user=paulsen.sean@gmail.com
+source /path/to/conda/envs/fmribert/bin/activate fmribert
+
+echo "Description: $1"
+echo "Pretrain Task: $2"
+echo "Pretrain Index: $3"
+echo "Fold: $4"
+echo "Freeze Pretrained: $5"
+echo "Finetune Script: $6"
+
+python /path/to/fmriBERT/"$6" \
+    -m "$1" -pretrain_task "$2" -pretrain_idx "$3" \
+    -count "$4" -freeze_pretrained "$5"
