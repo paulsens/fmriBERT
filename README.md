@@ -1,6 +1,6 @@
 # fmriBERT
 
-BERT-style self-supervised pretraining applied to fMRI voxel timeseries for music perception and auditory imagery decoding. Developed as part of my PhD thesis at [PLACEHOLDER: University Name] ([PLACEHOLDER: link to thesis]).
+BERT-style self-supervised pretraining applied to fMRI voxel timeseries for music perception and auditory imagery decoding. Developed as part of my PhD thesis at Dartmouth College (https://digitalcommons.dartmouth.edu/dissertations/173/).
 
 ## Overview
 
@@ -222,7 +222,8 @@ Key model parameters:
 If you use this code, please cite:
 
 ```
-[PLACEHOLDER: thesis citation]
+Paulsen, Sean, "Self-Supervised Pretraining and Transfer Learning on fMRI Data with Transformers" (2023). Dartmouth College Ph.D Dissertations. 173.
+https://digitalcommons.dartmouth.edu/dissertations/173
 ```
 
 ## License
