@@ -228,4 +228,4 @@ https://digitalcommons.dartmouth.edu/dissertations/173
 
 ## License
 
-[PLACEHOLDER: license]
+MIT License. See [LICENSE](LICENSE) for details.
